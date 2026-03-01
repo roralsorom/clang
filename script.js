@@ -1,369 +1,394 @@
 (function() {
-    'use strict';
-
-    // elements
     const $ = id => document.getElementById(id);
-    
+
     const codeInput = $('codeInput');
     const output = $('output');
-    const detectedTags = $('detectedTags');
-    const configPanel = $('configPanel');
-    const configToggle = $('configToggle');
+    const settingsList = $('settingsList');
+    const customOptions = $('customOptions');
+    const customToggle = $('customToggle');
     const toast = $('toast');
+    const toastMessage = $('toastMessage');
 
-    // sample code
-    const sampleCode = `class EntityManager {
+    const sampleCode = `class RenderSystem {
+private:
+    std::vector< std::unique_ptr< Shader > > m_shaders;
+    std::unordered_map< uint32_t, MeshData > m_meshCache;
+    
 public:
-    void update( float deltaTime ) {
-        for ( auto& entity : m_entities ) {
-            if ( entity->isActive( ) ) {
-                entity->tick( deltaTime );
+    RenderSystem( ) : m_isInitialized( false ) { }
+    
+    bool initialize( const RenderConfig& config ) {
+        if ( !createDevice( config.width, config.height ) )
+            return false;
+            
+        m_viewport = { 0, 0, config.width, config.height };
+        m_isInitialized = true;
+        return true;
+    }
+    
+    void renderFrame( float deltaTime ) {
+        for ( const auto& shader : m_shaders ) {
+            if ( shader->isEnabled( ) ) {
+                shader->bind( );
+                drawBatches( shader.get( ) );
             }
         }
     }
-
-    Entity* spawn( const std::string& name, const Vec3& position ) {
-        auto entity = std::make_unique< Entity >( name );
-        entity->setPosition( position );
-        m_entities.push_back( std::move( entity ) );
-        return m_entities.back( ).get( );
-    }
-
+    
     template< typename T >
-    T* findComponent( uint32_t entityId ) {
-        if ( auto it = m_components.find( entityId ); it != m_components.end( ) ) {
-            return static_cast< T* >( it->second.get( ) );
-        }
+    T* getShader( const std::string& name ) {
+        auto it = std::find_if( m_shaders.begin( ), m_shaders.end( ),
+            [ &name ]( const auto& s ) { return s->getName( ) == name; } );
+            
+        if ( it != m_shaders.end( ) )
+            return static_cast< T* >( it->get( ) );
         return nullptr;
     }
-
+    
 private:
-    std::vector< std::unique_ptr< Entity > > m_entities;
-    std::unordered_map< uint32_t, std::unique_ptr< Component > > m_components;
+    bool m_isInitialized;
+    Viewport m_viewport;
 };`;
 
-    // llvm defaults (what we compare against)
     const defaults = {
         IndentWidth: 2,
+        TabWidth: 2,
         UseTab: 'Never',
         IndentCaseLabels: false,
         IndentPPDirectives: 'None',
+        IndentGotoLabels: true,
+        NamespaceIndentation: 'None',
         SpacesInParentheses: false,
         SpaceInEmptyParentheses: false,
         SpacesInAngles: 'Never',
         SpacesInSquareBrackets: false,
         SpaceAfterCStyleCast: false,
         SpaceBeforeAssignmentOperators: true,
+        SpaceAfterLogicalNot: false,
+        SpaceBeforeInheritanceColon: true,
         BreakBeforeBraces: 'Attach',
         SpaceBeforeParens: 'ControlStatements',
         PointerAlignment: 'Right',
         AlignConsecutiveAssignments: 'None',
         AlignConsecutiveDeclarations: 'None',
         AlignTrailingComments: true,
+        AlignEscapedNewlines: 'Right',
+        AlignOperands: 'Align',
+        AlignArrayOfStructures: 'None',
         ColumnLimit: 80,
         MaxEmptyLinesToKeep: 1,
+        ContinuationIndentWidth: 4,
         BinPackArguments: true,
         BinPackParameters: true,
+        BreakBeforeBinaryOperators: 'None',
+        BreakBeforeTernaryOperators: true,
         AllowShortFunctionsOnASingleLine: 'All',
         AllowShortIfStatementsOnASingleLine: 'Never',
         AllowShortLoopsOnASingleLine: false,
         AllowShortBlocksOnASingleLine: 'Never',
+        AllowShortCaseLabelsOnASingleLine: false,
+        AllowShortLambdasOnASingleLine: 'All',
         SortIncludes: 'CaseSensitive',
+        SortUsingDeclarations: true,
         FixNamespaceComments: true,
         CompactNamespaces: false,
-        AlwaysBreakTemplateDeclarations: 'MultiLine'
+        IncludeBlocks: 'Preserve',
+        AlwaysBreakTemplateDeclarations: 'MultiLine',
+        InsertBraces: false,
+        RemoveBracesLLVM: false,
+        InsertTrailingCommas: 'None',
+        Standard: 'Latest'
     };
 
-    // init
     codeInput.value = sampleCode;
 
-    // toggle config panel
-    configToggle.onclick = () => {
-        configToggle.classList.toggle('open');
-        configPanel.classList.toggle('show');
-    };
+    customToggle.addEventListener('click', function() {
+        customOptions.classList.toggle('open');
+        this.querySelector('.toggle-icon').classList.toggle('rotated');
+    });
 
-    // clear button
-    $('clearBtn').onclick = () => {
+    $('clearBtn').addEventListener('click', function() {
         codeInput.value = '';
         codeInput.focus();
-    };
+    });
 
-    // analyze
-    $('analyzeBtn').onclick = () => {
-        const code = codeInput.value.trim();
+    $('analyzeBtn').addEventListener('click', function() {
+        var code = codeInput.value.trim();
         if (!code) {
-            notify('paste some code first');
+            showToast('Enter some code first');
             return;
         }
-        const detected = analyze(code);
-        applyDetected(detected);
-        showDetected(detected);
+        var patterns = analyzeCode(code);
+        applyToUI(patterns);
+        showPatterns(patterns);
         generate();
-    };
+    });
 
-    // generate
-    $('generateBtn').onclick = generate;
+    $('generateBtn').addEventListener('click', generate);
 
-    // copy
-    $('copyBtn').onclick = () => {
-        const txt = output.textContent;
-        if (txt.includes('paste code')) {
-            notify('generate something first');
+    $('copyBtn').addEventListener('click', function() {
+        var text = output.textContent;
+        if (text.indexOf('Click') !== -1) {
+            showToast('Generate config first');
             return;
         }
-        navigator.clipboard.writeText(txt);
-        notify('copied!');
-    };
+        navigator.clipboard.writeText(text);
+        showToast('Copied!');
+    });
 
-    // download
-    $('downloadBtn').onclick = () => {
-        const txt = output.textContent;
-        if (txt.includes('paste code')) {
-            notify('generate something first');
+    $('downloadBtn').addEventListener('click', function() {
+        var text = output.textContent;
+        if (text.indexOf('Click') !== -1) {
+            showToast('Generate config first');
             return;
         }
-        const blob = new Blob([txt], { type: 'text/plain' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
+        var blob = new Blob([text], { type: 'text/plain' });
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement('a');
         a.href = url;
         a.download = '.clang-format';
         a.click();
         URL.revokeObjectURL(url);
-        notify('downloaded!');
-    };
-
-    // auto-regen on config change
-    configPanel.querySelectorAll('input, select').forEach(el => {
-        el.onchange = () => {
-            if (!output.textContent.includes('paste code')) {
-                generate();
-            }
-        };
+        showToast('Downloaded!');
     });
 
-    // analyze code patterns
-    function analyze(code) {
-        const r = {};
+    var configInputs = customOptions.querySelectorAll('input, select');
+    for (var i = 0; i < configInputs.length; i++) {
+        configInputs[i].addEventListener('change', function() {
+            if (output.textContent.indexOf('Click') === -1) {
+                generate();
+            }
+        });
+    }
 
-        // spaces in parens: ( x ) vs (x)
+    function analyzeCode(code) {
+        var result = {};
+
         if (/\(\s+\S/.test(code) && /\S\s+\)/.test(code)) {
-            r.SpacesInParentheses = true;
-        } else if (/\(\S/.test(code) || /\S\)/.test(code)) {
-            r.SpacesInParentheses = false;
+            result.SpacesInParentheses = true;
+        } else if (/\(\S/.test(code) && /\S\)/.test(code)) {
+            result.SpacesInParentheses = false;
         }
 
-        // empty parens: ( ) vs ()
         if (/\(\s+\)/.test(code)) {
-            r.SpaceInEmptyParentheses = true;
+            result.SpaceInEmptyParentheses = true;
         } else if (/\(\)/.test(code)) {
-            r.SpaceInEmptyParentheses = false;
+            result.SpaceInEmptyParentheses = false;
         }
 
-        // angle brackets: < T > vs <T>
         if (/<\s+\w/.test(code) && /\w\s+>/.test(code)) {
-            r.SpacesInAngles = 'Always';
+            result.SpacesInAngles = 'Always';
         } else if (/<\w/.test(code)) {
-            r.SpacesInAngles = 'Never';
+            result.SpacesInAngles = 'Never';
         }
 
-        // square brackets
-        if (/\[\s+\w/.test(code)) {
-            r.SpacesInSquareBrackets = true;
+        if (/\[\s+\w/.test(code) && /\w\s+\]/.test(code)) {
+            result.SpacesInSquareBrackets = true;
         }
 
-        // brace style
         if (/\)\s*\n\s*\{/.test(code)) {
-            r.BreakBeforeBraces = 'Allman';
+            result.BreakBeforeBraces = 'Allman';
         } else if (/\)\s*\{/.test(code)) {
-            r.BreakBeforeBraces = 'Attach';
+            result.BreakBeforeBraces = 'Attach';
         }
 
-        // indentation
-        const lines = code.split('\n');
-        for (const line of lines) {
-            const m = line.match(/^(\s+)\S/);
-            if (m) {
-                const ws = m[1];
-                if (ws.includes('\t')) {
-                    r.UseTab = 'Always';
-                    r.IndentWidth = 4;
+        var lines = code.split('\n');
+        for (var i = 0; i < lines.length; i++) {
+            var match = lines[i].match(/^(\s+)\S/);
+            if (match) {
+                var ws = match[1];
+                if (ws.indexOf('\t') !== -1) {
+                    result.UseTab = 'Always';
+                    result.IndentWidth = 4;
                 } else {
-                    r.UseTab = 'Never';
-                    r.IndentWidth = ws.length;
-                    if (r.IndentWidth > 8) r.IndentWidth = 4; // probably continuation
+                    result.UseTab = 'Never';
+                    var len = ws.length;
+                    if (len <= 8) result.IndentWidth = len;
                 }
                 break;
             }
         }
 
-        // space before paren: if ( vs if(
-        const hasSpaceControl = /\b(if|for|while|switch)\s+\(/.test(code);
-        const noSpaceControl = /\b(if|for|while|switch)\(/.test(code);
-        if (hasSpaceControl && !noSpaceControl) {
-            r.SpaceBeforeParens = 'ControlStatements';
-        } else if (noSpaceControl) {
-            r.SpaceBeforeParens = 'Never';
+        if (/\b(if|for|while|switch)\s+\(/.test(code)) {
+            result.SpaceBeforeParens = 'ControlStatements';
+        } else if (/\b(if|for|while|switch)\(/.test(code)) {
+            result.SpaceBeforeParens = 'Never';
         }
 
-        // pointer align
         if (/\w+\*\s+\w/.test(code) && !/\w\s+\*\w/.test(code)) {
-            r.PointerAlignment = 'Left';
+            result.PointerAlignment = 'Left';
         } else if (/\w\s+\*\w/.test(code)) {
-            r.PointerAlignment = 'Right';
+            result.PointerAlignment = 'Right';
+        } else if (/\w\s+\*\s+\w/.test(code)) {
+            result.PointerAlignment = 'Middle';
         }
 
-        // template
         if (/template\s*<[^>]+>\s*\n/.test(code)) {
-            r.AlwaysBreakTemplateDeclarations = 'Yes';
+            result.AlwaysBreakTemplateDeclarations = 'Yes';
         }
 
-        return r;
+        if (/!\s+\w/.test(code)) {
+            result.SpaceAfterLogicalNot = true;
+        }
+
+        return result;
     }
 
-    // apply detected settings to UI
-    function applyDetected(d) {
-        if (d.IndentWidth != null) $('optIndentWidth').value = d.IndentWidth;
-        if (d.UseTab != null) $('optUseTabs').checked = d.UseTab === 'Always';
-        if (d.SpacesInParentheses != null) $('optSpaceParens').checked = d.SpacesInParentheses;
-        if (d.SpaceInEmptyParentheses != null) $('optSpaceEmptyParens').checked = d.SpaceInEmptyParentheses;
-        if (d.SpacesInAngles != null) $('optSpaceAngles').checked = d.SpacesInAngles === 'Always';
-        if (d.SpacesInSquareBrackets != null) $('optSpaceBrackets').checked = d.SpacesInSquareBrackets;
-        if (d.BreakBeforeBraces != null) $('optBraceStyle').value = d.BreakBeforeBraces;
-        if (d.SpaceBeforeParens != null) $('optSpaceBeforeParen').value = d.SpaceBeforeParens;
-        if (d.PointerAlignment != null) $('optPointerAlign').value = d.PointerAlignment;
-        if (d.AlwaysBreakTemplateDeclarations != null) $('optBreakTemplate').value = d.AlwaysBreakTemplateDeclarations;
+    function applyToUI(p) {
+        if (p.IndentWidth != null) $('optIndentWidth').value = p.IndentWidth;
+        if (p.UseTab != null) $('optUseTabs').checked = (p.UseTab === 'Always');
+        if (p.SpacesInParentheses != null) $('optSpaceParens').checked = p.SpacesInParentheses;
+        if (p.SpaceInEmptyParentheses != null) $('optSpaceEmptyParens').checked = p.SpaceInEmptyParentheses;
+        if (p.SpacesInAngles != null) $('optSpaceAngles').checked = (p.SpacesInAngles === 'Always');
+        if (p.SpacesInSquareBrackets != null) $('optSpaceBrackets').checked = p.SpacesInSquareBrackets;
+        if (p.BreakBeforeBraces != null) $('optBraceStyle').value = p.BreakBeforeBraces;
+        if (p.SpaceBeforeParens != null) $('optSpaceBeforeParen').value = p.SpaceBeforeParens;
+        if (p.PointerAlignment != null) $('optPointerAlign').value = p.PointerAlignment;
+        if (p.AlwaysBreakTemplateDeclarations != null) $('optBreakTemplate').value = p.AlwaysBreakTemplateDeclarations;
+        if (p.SpaceAfterLogicalNot != null) $('optSpaceAfterNot').checked = p.SpaceAfterLogicalNot;
     }
 
-    // show detected as tags
-    function showDetected(d) {
-        const keys = Object.keys(d);
+    function showPatterns(p) {
+        var keys = Object.keys(p);
         if (!keys.length) {
-            detectedTags.innerHTML = '<span class="muted">no patterns found</span>';
+            settingsList.innerHTML = '<p class="no-settings">No patterns detected</p>';
             return;
         }
-        detectedTags.innerHTML = keys.map(k => 
-            `<span class="tag"><span class="tag-k">${k}:</span><span class="tag-v">${d[k]}</span></span>`
-        ).join('');
+        var html = '';
+        for (var i = 0; i < keys.length; i++) {
+            var k = keys[i];
+            html += '<span class="setting-tag"><span class="tag-name">' + k + ':</span><span class="tag-value">' + p[k] + '</span></span>';
+        }
+        settingsList.innerHTML = html;
     }
 
-    // read current settings from UI
-    function readSettings() {
-        const indent = parseInt($('optIndentWidth').value) || 4;
+    function readUI() {
+        var indent = parseInt($('optIndentWidth').value) || 4;
         return {
             IndentWidth: indent,
             TabWidth: indent,
             UseTab: $('optUseTabs').checked ? 'Always' : 'Never',
             IndentCaseLabels: $('optIndentCase').checked,
             IndentPPDirectives: $('optIndentPP').checked ? 'BeforeHash' : 'None',
+            IndentGotoLabels: $('optIndentGoto').checked,
+            NamespaceIndentation: $('optNamespaceIndent').value,
             SpacesInParentheses: $('optSpaceParens').checked,
             SpaceInEmptyParentheses: $('optSpaceEmptyParens').checked,
             SpacesInAngles: $('optSpaceAngles').checked ? 'Always' : 'Never',
             SpacesInSquareBrackets: $('optSpaceBrackets').checked,
             SpaceAfterCStyleCast: $('optSpaceAfterCast').checked,
             SpaceBeforeAssignmentOperators: $('optSpaceBeforeAssign').checked,
+            SpaceAfterLogicalNot: $('optSpaceAfterNot').checked,
+            SpaceBeforeInheritanceColon: $('optSpaceBeforeColon').checked,
             BreakBeforeBraces: $('optBraceStyle').value,
             SpaceBeforeParens: $('optSpaceBeforeParen').value,
             PointerAlignment: $('optPointerAlign').value,
             AlignConsecutiveAssignments: $('optAlignAssign').checked ? 'Consecutive' : 'None',
             AlignConsecutiveDeclarations: $('optAlignDecl').checked ? 'Consecutive' : 'None',
             AlignTrailingComments: $('optAlignComments').checked,
+            AlignEscapedNewlines: $('optAlignEscaped').value,
+            AlignOperands: $('optAlignOperands').checked ? 'Align' : 'DontAlign',
+            AlignArrayOfStructures: $('optAlignArray').value,
             ColumnLimit: parseInt($('optColumnLimit').value) || 0,
             MaxEmptyLinesToKeep: parseInt($('optMaxEmptyLines').value) || 1,
+            ContinuationIndentWidth: parseInt($('optContinuationIndent').value) || 4,
             BinPackArguments: $('optBinPackArgs').checked,
             BinPackParameters: $('optBinPackParams').checked,
+            BreakBeforeBinaryOperators: $('optBreakBeforeBinary').value,
+            BreakBeforeTernaryOperators: $('optBreakTernary').checked,
             AllowShortFunctionsOnASingleLine: $('optShortFunctions').value,
             AllowShortIfStatementsOnASingleLine: $('optShortIf').value,
             AllowShortLoopsOnASingleLine: $('optShortLoops').checked,
             AllowShortBlocksOnASingleLine: $('optShortBlocks').checked ? 'Always' : 'Never',
+            AllowShortCaseLabelsOnASingleLine: $('optShortCase').checked,
+            AllowShortLambdasOnASingleLine: $('optShortLambdas').value,
             SortIncludes: $('optSortIncludes').checked ? 'CaseSensitive' : 'Never',
+            SortUsingDeclarations: $('optSortUsing').checked,
             FixNamespaceComments: $('optFixNsComments').checked,
             CompactNamespaces: $('optCompactNs').checked,
-            AlwaysBreakTemplateDeclarations: $('optBreakTemplate').value
+            IncludeBlocks: $('optIncludeBlocks').value,
+            AlwaysBreakTemplateDeclarations: $('optBreakTemplate').value,
+            InsertBraces: $('optInsertBraces').checked,
+            RemoveBracesLLVM: $('optRemoveBraces').checked,
+            InsertTrailingCommas: $('optTrailingComma').value,
+            Standard: $('optCppStandard').value
         };
     }
 
-    // get only changed settings
     function getChanged(settings) {
-        const changed = {};
-        for (const [k, v] of Object.entries(settings)) {
-            if (defaults[k] !== v) {
-                changed[k] = v;
+        var changed = {};
+        for (var k in settings) {
+            if (defaults.hasOwnProperty(k) && defaults[k] !== settings[k]) {
+                changed[k] = settings[k];
             }
         }
         return changed;
     }
 
-    // generate output
     function generate() {
-        const settings = readSettings();
-        const changed = getChanged(settings);
-        const keys = Object.keys(changed);
+        var settings = readUI();
+        var changed = getChanged(settings);
+        var keys = Object.keys(changed);
 
         if (!keys.length) {
-            output.innerHTML = '<span class="cmt"># identical to LLVM defaults</span>\nBasedOnStyle: LLVM';
+            output.innerHTML = '<span class="comment"># Matches LLVM defaults</span>\nBasedOnStyle: LLVM';
+            showToast('Generated!');
             return;
         }
 
-        let out = '';
-        out += '# .clang-format\n';
-        out += '# generated - only non-default values\n\n';
-        out += 'BasedOnStyle: LLVM\n';
-        out += 'Language: Cpp\n';
+        var text = '# .clang-format\n';
+        text += '# Generated config (non-default values only)\n\n';
+        text += 'BasedOnStyle: LLVM\n';
+        text += 'Language: Cpp\n';
 
-        // group by category for cleaner output
-        const groups = {
-            indent: ['IndentWidth', 'TabWidth', 'UseTab', 'IndentCaseLabels', 'IndentPPDirectives'],
-            spacing: ['SpacesInParentheses', 'SpaceInEmptyParentheses', 'SpacesInAngles', 
-                     'SpacesInSquareBrackets', 'SpaceAfterCStyleCast', 'SpaceBeforeAssignmentOperators'],
-            braces: ['BreakBeforeBraces', 'SpaceBeforeParens'],
-            align: ['PointerAlignment', 'AlignConsecutiveAssignments', 'AlignConsecutiveDeclarations', 'AlignTrailingComments'],
-            lines: ['ColumnLimit', 'MaxEmptyLinesToKeep', 'BinPackArguments', 'BinPackParameters'],
-            short: ['AllowShortFunctionsOnASingleLine', 'AllowShortIfStatementsOnASingleLine', 
-                   'AllowShortLoopsOnASingleLine', 'AllowShortBlocksOnASingleLine'],
-            other: ['SortIncludes', 'FixNamespaceComments', 'CompactNamespaces', 'AlwaysBreakTemplateDeclarations']
-        };
-
-        for (const [group, groupKeys] of Object.entries(groups)) {
-            const has = groupKeys.filter(k => changed[k] !== undefined);
-            if (has.length) {
-                out += '\n';
-                for (const k of has) {
-                    out += `${k}: ${formatVal(changed[k])}\n`;
-                }
+        for (var i = 0; i < keys.length; i++) {
+            var k = keys[i];
+            var v = changed[k];
+            if (typeof v === 'boolean') {
+                text += k + ': ' + (v ? 'true' : 'false') + '\n';
+            } else if (typeof v === 'number') {
+                text += k + ': ' + v + '\n';
+            } else {
+                text += k + ': ' + v + '\n';
             }
         }
 
-        output.innerHTML = highlight(out);
-        notify('done');
+        output.innerHTML = highlight(text);
+        showToast('Generated!');
     }
 
-    // format value for yaml
-    function formatVal(v) {
-        if (typeof v === 'boolean') return v ? 'true' : 'false';
-        if (typeof v === 'number') return v.toString();
-        return v;
+    function highlight(text) {
+        var lines = text.split('\n');
+        var result = [];
+        for (var i = 0; i < lines.length; i++) {
+            var line = lines[i];
+            if (line.charAt(0) === '#') {
+                result.push('<span class="comment">' + escapeHtml(line) + '</span>');
+            } else if (line.indexOf(':') !== -1) {
+                var parts = line.split(':');
+                var key = parts[0];
+                var val = parts.slice(1).join(':').trim();
+                var valClass = 'value';
+                if (val === 'true') valClass = 'value-true';
+                else if (val === 'false') valClass = 'value-false';
+                else if (/^\d+$/.test(val)) valClass = 'value-number';
+                result.push('<span class="key">' + escapeHtml(key) + '</span>: <span class="' + valClass + '">' + escapeHtml(val) + '</span>');
+            } else {
+                result.push(escapeHtml(line));
+            }
+        }
+        return result.join('\n');
     }
 
-    // syntax highlight
-    function highlight(s) {
-        return s
-            .replace(/(#[^\n]*)/g, '<span class="cmt">$1</span>')
-            .replace(/^(\w+):/gm, '<span class="key">$1</span>:')
-            .replace(/: (true)$/gm, ': <span class="bool-t">$1</span>')
-            .replace(/: (false)$/gm, ': <span class="bool-f">$1</span>')
-            .replace(/: (\d+)$/gm, ': <span class="num">$1</span>')
-            .replace(/: ([A-Za-z]+)$/gm, (m, p) => {
-                if (p === 'true' || p === 'false') return m;
-                return `: <span class="str">${p}</span>`;
-            });
+    function escapeHtml(s) {
+        return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     }
 
-    // toast notification
-    function notify(msg) {
-        toast.textContent = msg;
+    function showToast(msg) {
+        toastMessage.textContent = msg;
         toast.classList.add('show');
-        setTimeout(() => toast.classList.remove('show'), 1800);
+        setTimeout(function() {
+            toast.classList.remove('show');
+        }, 2000);
     }
-
 })();
