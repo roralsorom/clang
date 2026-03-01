@@ -10,66 +10,105 @@
     var toastMessage = $('toastMessage');
 
     var sampleCode = `#include <iostream>
-#include <Windows.h>
-#include <string>
 #include <vector>
-#include <thread>
-#include <functional>
-#include <map>
+#include <memory>
+#include <string>
+#include <unordered_map>
 
-#include "driver/client.h"
-#include "driver/driver.hxx"
-auto g_driver = std::make_unique< driver::c_driver >( );
+class MemoryManager {
+private:
+    std::vector< std::unique_ptr< uint8_t[ ] > > m_buffers;
+    std::unordered_map< uint64_t, size_t > m_allocations;
+    bool m_initialized;
 
+public:
+    MemoryManager( ) : m_initialized( false ) { }
 
-int main( ) {
-    if ( !g_driver->initialize( ) )
-        return std::getchar( );
+    bool initialize( size_t poolSize ) {
+        if ( m_initialized )
+            return false;
 
-    std::getchar( );
-
-    auto process_id = g_driver->get_process_id( L"notepad.exe" );
-    if ( !process_id )
-        return std::getchar( );
-
-    std::cout << "process_id: " << process_id << std::endl;
-
-    auto eprocess = g_driver->get_eprocess( process_id );
-    if ( !eprocess )
-        return std::getchar( );
-
-    std::cout << "eprocess: " << eprocess << std::endl;
-
-    auto base_address = g_driver->get_base_address( eprocess );
-    if ( !base_address )
-        return std::getchar( );
-
-    std::cout << "base_address: " << base_address << std::endl;
-
-    std::uint64_t call_count = 0;
-    LARGE_INTEGER freq, start, end;
-    QueryPerformanceFrequency( &freq );
-    QueryPerformanceCounter( &start );
-
-    while ( true ) {
-        QueryPerformanceCounter( &end );
-        if ( end.QuadPart >= test_end )
-            break;
-
-        void* buffer;
-        if ( !g_driver->read( base_address, &buffer, sizeof( std::uint64_t ) ) )
-            std::cout << "failed to read" << std::endl;
-
-        call_count++;
+        m_buffers.reserve( poolSize );
+        m_initialized = true;
+        return true;
     }
 
-    auto actual_duration = static_cast< double >( end.QuadPart - start.QuadPart ) / freq.QuadPart;
-    auto reads_per_sec = static_cast< double >( call_count ) / actual_duration;
+    void* allocate( size_t size ) {
+        if ( !m_initialized )
+            return nullptr;
 
-    printf( ( "Completed %llu calls in %.6f seconds\\n" ), call_count, actual_duration );
-    printf( ( "Rate: %.2f reads per second\\n" ), reads_per_sec );
+        auto buffer = std::make_unique< uint8_t[ ] >( size );
+        void* ptr = buffer.get( );
 
-    return std::getchar( );
+        m_allocations[ reinterpret_cast< uint64_t >( ptr ) ] = size;
+        m_buffers.push_back( std::move( buffer ) );
+
+        return ptr;
+    }
+
+    template< typename T >
+    T* read( uint64_t address ) {
+        if ( !address )
+            return nullptr;
+
+        auto it = m_allocations.find( address );
+        if ( it == m_allocations.end( ) )
+            return nullptr;
+
+        return reinterpret_cast< T* >( address );
+    }
+
+    template< typename T >
+    bool write( uint64_t address, const T& value ) {
+        if ( !address )
+            return false;
+
+        auto* ptr = read< T >( address );
+        if ( !ptr )
+            return false;
+
+        *ptr = value;
+        return true;
+    }
+
+    size_t getAllocationSize( void* ptr ) {
+        auto it = m_allocations.find( reinterpret_cast< uint64_t >( ptr ) );
+        if ( it != m_allocations.end( ) )
+            return it->second;
+        return 0;
+    }
+
+    void processBuffer( uint8_t* data, size_t length ) {
+        for ( size_t i = 0; i < length; i++ ) {
+            data[ i ] = static_cast< uint8_t >( data[ i ] ^ 0xFF );
+        }
+    }
+};
+
+int main( ) {
+    auto manager = std::make_unique< MemoryManager >( );
+
+    if ( !manager->initialize( 1024 ) )
+        return 1;
+
+    void* buffer = manager->allocate( sizeof( uint64_t ) );
+    if ( !buffer )
+        return 1;
+
+    std::cout << "allocated: " << buffer << std::endl;
+    std::cout << "size: " << manager->getAllocationSize( buffer ) << std::endl;
+
+    uint64_t testValue = 0xDEADBEEF;
+    if ( !manager->write( reinterpret_cast< uint64_t >( buffer ), testValue ) )
+        return 1;
+
+    auto* readValue = manager->read< uint64_t >( reinterpret_cast< uint64_t >( buffer ) );
+    if ( !readValue )
+        return 1;
+
+    std::cout << "value: 0x" << std::hex << *readValue << std::endl;
+
+    return 0;
 }`;
 
     codeInput.value = sampleCode;
