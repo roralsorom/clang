@@ -155,13 +155,14 @@ int main( ) {
             showToast('Generate config first');
             return;
         }
-        var blob = new Blob([text], { type: 'text/plain' });
+        var blob = new Blob([text], { type: 'application/octet-stream' });
         var url = URL.createObjectURL(blob);
         var a = document.createElement('a');
         a.href = url;
         a.download = '.clang-format';
         a.click();
         URL.revokeObjectURL(url);
+
         showToast('Downloaded!');
     });
 
