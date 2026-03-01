@@ -1,104 +1,76 @@
 (function() {
-    const $ = id => document.getElementById(id);
+    var $ = function(id) { return document.getElementById(id); };
 
-    const codeInput = $('codeInput');
-    const output = $('output');
-    const settingsList = $('settingsList');
-    const customOptions = $('customOptions');
-    const customToggle = $('customToggle');
-    const toast = $('toast');
-    const toastMessage = $('toastMessage');
+    var codeInput = $('codeInput');
+    var output = $('output');
+    var settingsList = $('settingsList');
+    var customOptions = $('customOptions');
+    var customToggle = $('customToggle');
+    var toast = $('toast');
+    var toastMessage = $('toastMessage');
 
-    const sampleCode = `class RenderSystem {
-private:
-    std::vector< std::unique_ptr< Shader > > m_shaders;
-    std::unordered_map< uint32_t, MeshData > m_meshCache;
-    
-public:
-    RenderSystem( ) : m_isInitialized( false ) { }
-    
-    bool initialize( const RenderConfig& config ) {
-        if ( !createDevice( config.width, config.height ) )
-            return false;
-            
-        m_viewport = { 0, 0, config.width, config.height };
-        m_isInitialized = true;
-        return true;
-    }
-    
-    void renderFrame( float deltaTime ) {
-        for ( const auto& shader : m_shaders ) {
-            if ( shader->isEnabled( ) ) {
-                shader->bind( );
-                drawBatches( shader.get( ) );
-            }
-        }
-    }
-    
-    template< typename T >
-    T* getShader( const std::string& name ) {
-        auto it = std::find_if( m_shaders.begin( ), m_shaders.end( ),
-            [ &name ]( const auto& s ) { return s->getName( ) == name; } );
-            
-        if ( it != m_shaders.end( ) )
-            return static_cast< T* >( it->get( ) );
-        return nullptr;
-    }
-    
-private:
-    bool m_isInitialized;
-    Viewport m_viewport;
-};`;
+    var sampleCode = `#include <iostream>
+#include <Windows.h>
+#include <string>
+#include <vector>
+#include <thread>
+#include <functional>
+#include <map>
 
-    const defaults = {
-        IndentWidth: 2,
-        TabWidth: 2,
-        UseTab: 'Never',
-        IndentCaseLabels: false,
-        IndentPPDirectives: 'None',
-        IndentGotoLabels: true,
-        NamespaceIndentation: 'None',
-        SpacesInParentheses: false,
-        SpaceInEmptyParentheses: false,
-        SpacesInAngles: 'Never',
-        SpacesInSquareBrackets: false,
-        SpaceAfterCStyleCast: false,
-        SpaceBeforeAssignmentOperators: true,
-        SpaceAfterLogicalNot: false,
-        SpaceBeforeInheritanceColon: true,
-        BreakBeforeBraces: 'Attach',
-        SpaceBeforeParens: 'ControlStatements',
-        PointerAlignment: 'Right',
-        AlignConsecutiveAssignments: 'None',
-        AlignConsecutiveDeclarations: 'None',
-        AlignTrailingComments: true,
-        AlignEscapedNewlines: 'Right',
-        AlignOperands: 'Align',
-        AlignArrayOfStructures: 'None',
-        ColumnLimit: 80,
-        MaxEmptyLinesToKeep: 1,
-        ContinuationIndentWidth: 4,
-        BinPackArguments: true,
-        BinPackParameters: true,
-        BreakBeforeBinaryOperators: 'None',
-        BreakBeforeTernaryOperators: true,
-        AllowShortFunctionsOnASingleLine: 'All',
-        AllowShortIfStatementsOnASingleLine: 'Never',
-        AllowShortLoopsOnASingleLine: false,
-        AllowShortBlocksOnASingleLine: 'Never',
-        AllowShortCaseLabelsOnASingleLine: false,
-        AllowShortLambdasOnASingleLine: 'All',
-        SortIncludes: 'CaseSensitive',
-        SortUsingDeclarations: true,
-        FixNamespaceComments: true,
-        CompactNamespaces: false,
-        IncludeBlocks: 'Preserve',
-        AlwaysBreakTemplateDeclarations: 'MultiLine',
-        InsertBraces: false,
-        RemoveBracesLLVM: false,
-        InsertTrailingCommas: 'None',
-        Standard: 'Latest'
-    };
+#include "driver/client.h"
+#include "driver/driver.hxx"
+auto g_driver = std::make_unique< driver::c_driver >( );
+
+
+int main( ) {
+    if ( !g_driver->initialize( ) )
+        return std::getchar( );
+
+    std::getchar( );
+
+    auto process_id = g_driver->get_process_id( L"notepad.exe" );
+    if ( !process_id )
+        return std::getchar( );
+
+    std::cout << "process_id: " << process_id << std::endl;
+
+    auto eprocess = g_driver->get_eprocess( process_id );
+    if ( !eprocess )
+        return std::getchar( );
+
+    std::cout << "eprocess: " << eprocess << std::endl;
+
+    auto base_address = g_driver->get_base_address( eprocess );
+    if ( !base_address )
+        return std::getchar( );
+
+    std::cout << "base_address: " << base_address << std::endl;
+
+    std::uint64_t call_count = 0;
+    LARGE_INTEGER freq, start, end;
+    QueryPerformanceFrequency( &freq );
+    QueryPerformanceCounter( &start );
+
+    while ( true ) {
+        QueryPerformanceCounter( &end );
+        if ( end.QuadPart >= test_end )
+            break;
+
+        void* buffer;
+        if ( !g_driver->read( base_address, &buffer, sizeof( std::uint64_t ) ) )
+            std::cout << "failed to read" << std::endl;
+
+        call_count++;
+    }
+
+    auto actual_duration = static_cast< double >( end.QuadPart - start.QuadPart ) / freq.QuadPart;
+    auto reads_per_sec = static_cast< double >( call_count ) / actual_duration;
+
+    printf( ( "Completed %llu calls in %.6f seconds\\n" ), call_count, actual_duration );
+    printf( ( "Rate: %.2f reads per second\\n" ), reads_per_sec );
+
+    return std::getchar( );
+}`;
 
     codeInput.value = sampleCode;
 
@@ -121,10 +93,12 @@ private:
         var patterns = analyzeCode(code);
         applyToUI(patterns);
         showPatterns(patterns);
-        generate();
+        generateFromPatterns(patterns);
     });
 
-    $('generateBtn').addEventListener('click', generate);
+    $('generateBtn').addEventListener('click', function() {
+        generate();
+    });
 
     $('copyBtn').addEventListener('click', function() {
         var text = output.textContent;
@@ -163,89 +137,165 @@ private:
 
     function analyzeCode(code) {
         var result = {};
-
-        if (/\(\s+\S/.test(code) && /\S\s+\)/.test(code)) {
-            result.SpacesInParentheses = true;
-        } else if (/\(\S/.test(code) && /\S\)/.test(code)) {
-            result.SpacesInParentheses = false;
-        }
-
-        if (/\(\s+\)/.test(code)) {
-            result.SpaceInEmptyParentheses = true;
-        } else if (/\(\)/.test(code)) {
-            result.SpaceInEmptyParentheses = false;
-        }
-
-        if (/<\s+\w/.test(code) && /\w\s+>/.test(code)) {
-            result.SpacesInAngles = 'Always';
-        } else if (/<\w/.test(code)) {
-            result.SpacesInAngles = 'Never';
-        }
-
-        if (/\[\s+\w/.test(code) && /\w\s+\]/.test(code)) {
-            result.SpacesInSquareBrackets = true;
-        }
-
-        if (/\)\s*\n\s*\{/.test(code)) {
-            result.BreakBeforeBraces = 'Allman';
-        } else if (/\)\s*\{/.test(code)) {
-            result.BreakBeforeBraces = 'Attach';
-        }
-
+        
+        // Indentation - find first indented line
         var lines = code.split('\n');
         for (var i = 0; i < lines.length; i++) {
-            var match = lines[i].match(/^(\s+)\S/);
-            if (match) {
-                var ws = match[1];
+            var m = lines[i].match(/^(\s+)\S/);
+            if (m) {
+                var ws = m[1];
                 if (ws.indexOf('\t') !== -1) {
-                    result.UseTab = 'Always';
+                    result.UseTab = true;
                     result.IndentWidth = 4;
                 } else {
-                    result.UseTab = 'Never';
-                    var len = ws.length;
-                    if (len <= 8) result.IndentWidth = len;
+                    result.UseTab = false;
+                    result.IndentWidth = ws.length;
                 }
                 break;
             }
         }
 
-        if (/\b(if|for|while|switch)\s+\(/.test(code)) {
-            result.SpaceBeforeParens = 'ControlStatements';
-        } else if (/\b(if|for|while|switch)\(/.test(code)) {
+        // Spaces in parentheses: func( x ) vs func(x)
+        // Look for pattern: ( followed by space and non-space, and non-space followed by space and )
+        var spacedParens = /\(\s+[^\s\)]/.test(code) && /[^\s\(]\s+\)/.test(code);
+        var tightParens = /\([^\s]/.test(code) && /[^\s]\)/.test(code);
+        
+        // Count occurrences to determine dominant style
+        var spacedCount = (code.match(/\(\s+\S/g) || []).length;
+        var tightCount = (code.match(/\(\S/g) || []).length;
+        
+        if (spacedCount > tightCount * 0.5) {
+            result.SpacesInParentheses = true;
+        }
+
+        // Space in empty parentheses: func( ) vs func()
+        if (/\(\s+\)/.test(code)) {
+            result.SpaceInEmptyParentheses = true;
+        }
+
+        // Spaces in angle brackets: < type > vs <type>
+        // Check templates like std::make_unique< type >
+        var spacedAngles = /<\s+\w/.test(code) || /\w\s+>/.test(code);
+        var tightAngles = /<\w/.test(code) && /\w>/.test(code);
+        
+        // Look specifically for template patterns with spaces
+        var templateWithSpaces = /\w+<\s+[\w:]+\s*>/.test(code) || /static_cast<\s+\w+\s*>/.test(code);
+        
+        if (spacedAngles || templateWithSpaces) {
+            result.SpacesInAngles = true;
+        }
+
+        // Spaces in square brackets: arr[ i ] vs arr[i]
+        if (/\[\s+\w/.test(code) && /\w\s+\]/.test(code)) {
+            result.SpacesInSquareBrackets = true;
+        }
+
+        // Brace style - check if { is on same line as )
+        if (/\)\s*\{/.test(code)) {
+            result.BreakBeforeBraces = 'Attach';
+        } else if (/\)\s*\n\s*\{/.test(code)) {
+            result.BreakBeforeBraces = 'Allman';
+        }
+
+        // Space before parens - THE KEY DETECTION
+        // Pattern: if ( ... ) has space, but func( ) has no space before (
+        var controlWithSpace = /\b(if|for|while|switch)\s+\(/.test(code);
+        var controlNoSpace = /\b(if|for|while|switch)\(/.test(code);
+        
+        // Check function calls - they should NOT have space before (
+        // Pattern: identifier( without space = func call style
+        var funcCallPattern = /[a-zA-Z_]\w*\(/g;
+        var funcCalls = code.match(funcCallPattern) || [];
+        
+        // Filter out control statements
+        var pureFuncCalls = funcCalls.filter(function(call) {
+            return !/(if|for|while|switch|return)\(/.test(call);
+        });
+        
+        // Check if function DEFINITIONS have space before (
+        // Pattern: type func ( ) or func ( ) {
+        var funcDefWithSpace = /\w+\s+\([\s\)]*\)\s*[:{]/.test(code);
+        var funcDefNoSpace = /\w+\([\s\)]*\)\s*[:{]/.test(code);
+        
+        if (controlWithSpace && !controlNoSpace) {
+            // Control statements have space
+            if (pureFuncCalls.length > 0) {
+                // Function calls exist without space before (
+                // This is the custom style: if ( ) but func( )
+                result.SpaceBeforeParens = 'Custom';
+                result.SpaceBeforeParensOptions = {
+                    AfterControlStatements: true,
+                    AfterFunctionDefinitionName: false,
+                    AfterFunctionDeclarationName: false,
+                    AfterIfMacros: true,
+                    AfterOverloadedOperator: false,
+                    BeforeNonEmptyParentheses: false
+                };
+            } else {
+                result.SpaceBeforeParens = 'ControlStatements';
+            }
+        } else if (controlNoSpace && !controlWithSpace) {
             result.SpaceBeforeParens = 'Never';
         }
 
-        if (/\w+\*\s+\w/.test(code) && !/\w\s+\*\w/.test(code)) {
+        // Pointer alignment: int* x vs int *x
+        if (/[a-zA-Z_]\w*\*\s+\w/.test(code)) {
             result.PointerAlignment = 'Left';
-        } else if (/\w\s+\*\w/.test(code)) {
+        } else if (/\w\s+\*[a-zA-Z_]/.test(code)) {
             result.PointerAlignment = 'Right';
-        } else if (/\w\s+\*\s+\w/.test(code)) {
-            result.PointerAlignment = 'Middle';
         }
 
-        if (/template\s*<[^>]+>\s*\n/.test(code)) {
-            result.AlwaysBreakTemplateDeclarations = 'Yes';
+        // Column limit - check max line length
+        var maxLen = 0;
+        for (var j = 0; j < lines.length; j++) {
+            if (lines[j].length > maxLen) maxLen = lines[j].length;
+        }
+        if (maxLen > 80) {
+            result.ColumnLimit = 0;
         }
 
-        if (/!\s+\w/.test(code)) {
-            result.SpaceAfterLogicalNot = true;
+        // Short if statements - check for multi-line if without braces
+        // Pattern: if ( ... )\n    statement;
+        if (/\bif\s*\([^)]+\)\s*\n\s+\w/.test(code)) {
+            result.AllowShortIfStatementsOnASingleLine = 'Never';
+        }
+
+        // Short blocks - check for empty blocks { }
+        if (/\{\s*\}/.test(code)) {
+            result.AllowShortBlocksOnASingleLine = 'Empty';
+        } else {
+            result.AllowShortBlocksOnASingleLine = 'Never';
+        }
+
+        // Short loops
+        if (/\b(for|while)\s*\([^)]+\)\s*\n/.test(code)) {
+            result.AllowShortLoopsOnASingleLine = false;
+        }
+
+        // Short functions - check if functions span multiple lines
+        if (/\)\s*\{\s*\n/.test(code)) {
+            result.AllowShortFunctionsOnASingleLine = 'None';
         }
 
         return result;
     }
 
     function applyToUI(p) {
-        if (p.IndentWidth != null) $('optIndentWidth').value = p.IndentWidth;
-        if (p.UseTab != null) $('optUseTabs').checked = (p.UseTab === 'Always');
-        if (p.SpacesInParentheses != null) $('optSpaceParens').checked = p.SpacesInParentheses;
-        if (p.SpaceInEmptyParentheses != null) $('optSpaceEmptyParens').checked = p.SpaceInEmptyParentheses;
-        if (p.SpacesInAngles != null) $('optSpaceAngles').checked = (p.SpacesInAngles === 'Always');
-        if (p.SpacesInSquareBrackets != null) $('optSpaceBrackets').checked = p.SpacesInSquareBrackets;
-        if (p.BreakBeforeBraces != null) $('optBraceStyle').value = p.BreakBeforeBraces;
-        if (p.SpaceBeforeParens != null) $('optSpaceBeforeParen').value = p.SpaceBeforeParens;
-        if (p.PointerAlignment != null) $('optPointerAlign').value = p.PointerAlignment;
-        if (p.AlwaysBreakTemplateDeclarations != null) $('optBreakTemplate').value = p.AlwaysBreakTemplateDeclarations;
-        if (p.SpaceAfterLogicalNot != null) $('optSpaceAfterNot').checked = p.SpaceAfterLogicalNot;
+        if (p.IndentWidth) $('optIndentWidth').value = p.IndentWidth;
+        if (p.UseTab !== undefined) $('optUseTabs').checked = p.UseTab;
+        if (p.SpacesInParentheses !== undefined) $('optSpaceParens').checked = p.SpacesInParentheses;
+        if (p.SpaceInEmptyParentheses !== undefined) $('optSpaceEmptyParens').checked = p.SpaceInEmptyParentheses;
+        if (p.SpacesInAngles !== undefined) $('optSpaceAngles').checked = p.SpacesInAngles;
+        if (p.SpacesInSquareBrackets !== undefined) $('optSpaceBrackets').checked = p.SpacesInSquareBrackets;
+        if (p.BreakBeforeBraces) $('optBraceStyle').value = p.BreakBeforeBraces;
+        if (p.SpaceBeforeParens && p.SpaceBeforeParens !== 'Custom') {
+            $('optSpaceBeforeParen').value = p.SpaceBeforeParens;
+        }
+        if (p.PointerAlignment) $('optPointerAlign').value = p.PointerAlignment;
+        if (p.AllowShortFunctionsOnASingleLine) $('optShortFunctions').value = p.AllowShortFunctionsOnASingleLine;
+        if (p.AllowShortIfStatementsOnASingleLine) $('optShortIf').value = p.AllowShortIfStatementsOnASingleLine;
+        if (p.AllowShortLoopsOnASingleLine !== undefined) $('optShortLoops').checked = p.AllowShortLoopsOnASingleLine;
+        if (p.ColumnLimit !== undefined) $('optColumnLimit').value = p.ColumnLimit;
     }
 
     function showPatterns(p) {
@@ -257,102 +307,165 @@ private:
         var html = '';
         for (var i = 0; i < keys.length; i++) {
             var k = keys[i];
-            html += '<span class="setting-tag"><span class="tag-name">' + k + ':</span><span class="tag-value">' + p[k] + '</span></span>';
+            var v = p[k];
+            if (typeof v === 'object') {
+                v = 'Custom {...}';
+            }
+            html += '<span class="setting-tag"><span class="tag-name">' + k + ':</span><span class="tag-value">' + v + '</span></span>';
         }
         settingsList.innerHTML = html;
     }
 
-    function readUI() {
-        var indent = parseInt($('optIndentWidth').value) || 4;
-        return {
-            IndentWidth: indent,
-            TabWidth: indent,
-            UseTab: $('optUseTabs').checked ? 'Always' : 'Never',
-            IndentCaseLabels: $('optIndentCase').checked,
-            IndentPPDirectives: $('optIndentPP').checked ? 'BeforeHash' : 'None',
-            IndentGotoLabels: $('optIndentGoto').checked,
-            NamespaceIndentation: $('optNamespaceIndent').value,
-            SpacesInParentheses: $('optSpaceParens').checked,
-            SpaceInEmptyParentheses: $('optSpaceEmptyParens').checked,
-            SpacesInAngles: $('optSpaceAngles').checked ? 'Always' : 'Never',
-            SpacesInSquareBrackets: $('optSpaceBrackets').checked,
-            SpaceAfterCStyleCast: $('optSpaceAfterCast').checked,
-            SpaceBeforeAssignmentOperators: $('optSpaceBeforeAssign').checked,
-            SpaceAfterLogicalNot: $('optSpaceAfterNot').checked,
-            SpaceBeforeInheritanceColon: $('optSpaceBeforeColon').checked,
-            BreakBeforeBraces: $('optBraceStyle').value,
-            SpaceBeforeParens: $('optSpaceBeforeParen').value,
-            PointerAlignment: $('optPointerAlign').value,
-            AlignConsecutiveAssignments: $('optAlignAssign').checked ? 'Consecutive' : 'None',
-            AlignConsecutiveDeclarations: $('optAlignDecl').checked ? 'Consecutive' : 'None',
-            AlignTrailingComments: $('optAlignComments').checked,
-            AlignEscapedNewlines: $('optAlignEscaped').value,
-            AlignOperands: $('optAlignOperands').checked ? 'Align' : 'DontAlign',
-            AlignArrayOfStructures: $('optAlignArray').value,
-            ColumnLimit: parseInt($('optColumnLimit').value) || 0,
-            MaxEmptyLinesToKeep: parseInt($('optMaxEmptyLines').value) || 1,
-            ContinuationIndentWidth: parseInt($('optContinuationIndent').value) || 4,
-            BinPackArguments: $('optBinPackArgs').checked,
-            BinPackParameters: $('optBinPackParams').checked,
-            BreakBeforeBinaryOperators: $('optBreakBeforeBinary').value,
-            BreakBeforeTernaryOperators: $('optBreakTernary').checked,
-            AllowShortFunctionsOnASingleLine: $('optShortFunctions').value,
-            AllowShortIfStatementsOnASingleLine: $('optShortIf').value,
-            AllowShortLoopsOnASingleLine: $('optShortLoops').checked,
-            AllowShortBlocksOnASingleLine: $('optShortBlocks').checked ? 'Always' : 'Never',
-            AllowShortCaseLabelsOnASingleLine: $('optShortCase').checked,
-            AllowShortLambdasOnASingleLine: $('optShortLambdas').value,
-            SortIncludes: $('optSortIncludes').checked ? 'CaseSensitive' : 'Never',
-            SortUsingDeclarations: $('optSortUsing').checked,
-            FixNamespaceComments: $('optFixNsComments').checked,
-            CompactNamespaces: $('optCompactNs').checked,
-            IncludeBlocks: $('optIncludeBlocks').value,
-            AlwaysBreakTemplateDeclarations: $('optBreakTemplate').value,
-            InsertBraces: $('optInsertBraces').checked,
-            RemoveBracesLLVM: $('optRemoveBraces').checked,
-            InsertTrailingCommas: $('optTrailingComma').value,
-            Standard: $('optCppStandard').value
-        };
-    }
-
-    function getChanged(settings) {
-        var changed = {};
-        for (var k in settings) {
-            if (defaults.hasOwnProperty(k) && defaults[k] !== settings[k]) {
-                changed[k] = settings[k];
+    function generateFromPatterns(patterns) {
+        var text = '';
+        text += 'BasedOnStyle: LLVM\n';
+        text += 'Language: Cpp\n';
+        
+        // Indentation
+        if (patterns.IndentWidth) {
+            text += 'IndentWidth: ' + patterns.IndentWidth + '\n';
+            text += 'TabWidth: ' + patterns.IndentWidth + '\n';
+        }
+        if (patterns.UseTab !== undefined) {
+            text += 'UseTab: ' + (patterns.UseTab ? 'Always' : 'Never') + '\n';
+        }
+        
+        text += '\n';
+        
+        // Braces
+        if (patterns.BreakBeforeBraces) {
+            text += '# Braces\n';
+            text += 'BreakBeforeBraces: ' + patterns.BreakBeforeBraces + '\n';
+            text += '\n';
+        }
+        
+        // Spacing
+        var hasSpacing = patterns.SpacesInParentheses || patterns.SpaceInEmptyParentheses || 
+                         patterns.SpacesInAngles || patterns.SpacesInSquareBrackets;
+        if (hasSpacing) {
+            text += '# Spaces in brackets\n';
+            if (patterns.SpacesInParentheses) text += 'SpacesInParentheses: true\n';
+            if (patterns.SpaceInEmptyParentheses) text += 'SpaceInEmptyParentheses: true\n';
+            if (patterns.SpacesInAngles) text += 'SpacesInAngles: true\n';
+            if (patterns.SpacesInSquareBrackets) text += 'SpacesInSquareBrackets: true\n';
+            text += '\n';
+        }
+        
+        // Space before parens - THE CUSTOM BLOCK
+        if (patterns.SpaceBeforeParens === 'Custom' && patterns.SpaceBeforeParensOptions) {
+            text += '# Space BEFORE opening paren - this is the key change\n';
+            text += 'SpaceBeforeParens: Custom\n';
+            text += 'SpaceBeforeParensOptions:\n';
+            text += '  AfterControlStatements: true          # if ( ) ✓\n';
+            text += '  AfterFunctionDefinitionName: false    # void func( ) not void func ( )\n';
+            text += '  AfterFunctionDeclarationName: false   # void func( ); not void func ( );\n';
+            text += '  AfterIfMacros: true\n';
+            text += '  AfterOverloadedOperator: false\n';
+            text += '  BeforeNonEmptyParentheses: false\n';
+            text += '\n';
+        } else if (patterns.SpaceBeforeParens && patterns.SpaceBeforeParens !== 'ControlStatements') {
+            text += 'SpaceBeforeParens: ' + patterns.SpaceBeforeParens + '\n';
+        }
+        
+        // Other settings
+        var hasOther = patterns.PointerAlignment || patterns.ColumnLimit !== undefined ||
+                       patterns.AllowShortIfStatementsOnASingleLine || 
+                       patterns.AllowShortBlocksOnASingleLine ||
+                       patterns.AllowShortLoopsOnASingleLine !== undefined ||
+                       patterns.AllowShortFunctionsOnASingleLine;
+        
+        if (hasOther) {
+            text += '# Other settings\n';
+            if (patterns.PointerAlignment) text += 'PointerAlignment: ' + patterns.PointerAlignment + '\n';
+            if (patterns.ColumnLimit !== undefined) text += 'ColumnLimit: ' + patterns.ColumnLimit + '\n';
+            if (patterns.AllowShortIfStatementsOnASingleLine) {
+                text += 'AllowShortIfStatementsOnASingleLine: ' + patterns.AllowShortIfStatementsOnASingleLine + '\n';
+            }
+            if (patterns.AllowShortBlocksOnASingleLine) {
+                text += 'AllowShortBlocksOnASingleLine: ' + patterns.AllowShortBlocksOnASingleLine + '\n';
+            }
+            if (patterns.AllowShortLoopsOnASingleLine !== undefined) {
+                text += 'AllowShortLoopsOnASingleLine: ' + patterns.AllowShortLoopsOnASingleLine + '\n';
+            }
+            if (patterns.AllowShortFunctionsOnASingleLine) {
+                text += 'AllowShortFunctionsOnASingleLine: ' + patterns.AllowShortFunctionsOnASingleLine + '\n';
             }
         }
-        return changed;
+        
+        output.innerHTML = highlight(text);
+        showToast('Generated!');
     }
 
     function generate() {
-        var settings = readUI();
-        var changed = getChanged(settings);
-        var keys = Object.keys(changed);
-
-        if (!keys.length) {
-            output.innerHTML = '<span class="comment"># Matches LLVM defaults</span>\nBasedOnStyle: LLVM';
-            showToast('Generated!');
-            return;
+        var code = codeInput.value.trim();
+        if (code) {
+            var patterns = analyzeCode(code);
+            generateFromPatterns(patterns);
+        } else {
+            generateFromUI();
         }
+    }
 
-        var text = '# .clang-format\n';
-        text += '# Generated config (non-default values only)\n\n';
+    function generateFromUI() {
+        var indent = parseInt($('optIndentWidth').value) || 4;
+        
+        var text = '';
         text += 'BasedOnStyle: LLVM\n';
         text += 'Language: Cpp\n';
-
-        for (var i = 0; i < keys.length; i++) {
-            var k = keys[i];
-            var v = changed[k];
-            if (typeof v === 'boolean') {
-                text += k + ': ' + (v ? 'true' : 'false') + '\n';
-            } else if (typeof v === 'number') {
-                text += k + ': ' + v + '\n';
-            } else {
-                text += k + ': ' + v + '\n';
-            }
+        text += 'IndentWidth: ' + indent + '\n';
+        text += 'TabWidth: ' + indent + '\n';
+        text += 'UseTab: ' + ($('optUseTabs').checked ? 'Always' : 'Never') + '\n';
+        text += '\n';
+        
+        text += '# Braces\n';
+        text += 'BreakBeforeBraces: ' + $('optBraceStyle').value + '\n';
+        text += '\n';
+        
+        var spacesInParens = $('optSpaceParens').checked;
+        var spaceInEmpty = $('optSpaceEmptyParens').checked;
+        var spacesInAngles = $('optSpaceAngles').checked;
+        var spacesInBrackets = $('optSpaceBrackets').checked;
+        
+        if (spacesInParens || spaceInEmpty || spacesInAngles || spacesInBrackets) {
+            text += '# Spaces in brackets\n';
+            if (spacesInParens) text += 'SpacesInParentheses: true\n';
+            if (spaceInEmpty) text += 'SpaceInEmptyParentheses: true\n';
+            if (spacesInAngles) text += 'SpacesInAngles: true\n';
+            if (spacesInBrackets) text += 'SpacesInSquareBrackets: true\n';
+            text += '\n';
         }
-
+        
+        var spaceBeforeParen = $('optSpaceBeforeParen').value;
+        if (spaceBeforeParen !== 'ControlStatements') {
+            text += 'SpaceBeforeParens: ' + spaceBeforeParen + '\n';
+        }
+        
+        text += '# Other settings\n';
+        text += 'PointerAlignment: ' + $('optPointerAlign').value + '\n';
+        
+        var colLimit = parseInt($('optColumnLimit').value);
+        if (colLimit !== 80) {
+            text += 'ColumnLimit: ' + colLimit + '\n';
+        }
+        
+        var shortFuncs = $('optShortFunctions').value;
+        if (shortFuncs !== 'All') {
+            text += 'AllowShortFunctionsOnASingleLine: ' + shortFuncs + '\n';
+        }
+        
+        var shortIf = $('optShortIf').value;
+        if (shortIf !== 'Never') {
+            text += 'AllowShortIfStatementsOnASingleLine: ' + shortIf + '\n';
+        }
+        
+        if ($('optShortLoops').checked) {
+            text += 'AllowShortLoopsOnASingleLine: true\n';
+        }
+        
+        if ($('optShortBlocks').checked) {
+            text += 'AllowShortBlocksOnASingleLine: Always\n';
+        }
+        
         output.innerHTML = highlight(text);
         showToast('Generated!');
     }
@@ -362,22 +475,51 @@ private:
         var result = [];
         for (var i = 0; i < lines.length; i++) {
             var line = lines[i];
-            if (line.charAt(0) === '#') {
+            if (line.trim() === '') {
+                result.push('');
+            } else if (line.charAt(0) === '#') {
                 result.push('<span class="comment">' + escapeHtml(line) + '</span>');
-            } else if (line.indexOf(':') !== -1) {
+            } else if (line.match(/^\s+\w/)) {
+                // Indented lines (YAML nested)
                 var parts = line.split(':');
-                var key = parts[0];
-                var val = parts.slice(1).join(':').trim();
-                var valClass = 'value';
-                if (val === 'true') valClass = 'value-true';
-                else if (val === 'false') valClass = 'value-false';
-                else if (/^\d+$/.test(val)) valClass = 'value-number';
-                result.push('<span class="key">' + escapeHtml(key) + '</span>: <span class="' + valClass + '">' + escapeHtml(val) + '</span>');
+                if (parts.length >= 2) {
+                    var key = parts[0];
+                    var val = parts.slice(1).join(':').trim();
+                    // Check if there's a comment
+                    var commentIdx = val.indexOf('#');
+                    if (commentIdx !== -1) {
+                        var valPart = val.substring(0, commentIdx).trim();
+                        var cmtPart = val.substring(commentIdx);
+                        result.push('<span class="key">' + escapeHtml(key) + '</span>: <span class="' + getValClass(valPart) + '">' + escapeHtml(valPart) + '</span> <span class="comment">' + escapeHtml(cmtPart) + '</span>');
+                    } else {
+                        result.push('<span class="key">' + escapeHtml(key) + '</span>: <span class="' + getValClass(val) + '">' + escapeHtml(val) + '</span>');
+                    }
+                } else {
+                    result.push(escapeHtml(line));
+                }
+            } else if (line.indexOf(':') !== -1) {
+                var colonIdx = line.indexOf(':');
+                var key = line.substring(0, colonIdx);
+                var val = line.substring(colonIdx + 1).trim();
+                
+                if (val === '') {
+                    // Key only (like SpaceBeforeParensOptions:)
+                    result.push('<span class="key">' + escapeHtml(key) + '</span>:');
+                } else {
+                    result.push('<span class="key">' + escapeHtml(key) + '</span>: <span class="' + getValClass(val) + '">' + escapeHtml(val) + '</span>');
+                }
             } else {
                 result.push(escapeHtml(line));
             }
         }
         return result.join('\n');
+    }
+
+    function getValClass(val) {
+        if (val === 'true') return 'value-true';
+        if (val === 'false') return 'value-false';
+        if (/^\d+$/.test(val)) return 'value-number';
+        return 'value';
     }
 
     function escapeHtml(s) {
