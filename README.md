@@ -45,4 +45,4 @@ No more guessing what `SpacesInParentheses` or `BreakBeforeBraces` should be!
 ---
 
 ## 🖼️ Preview
-![preview](https://raw.githubusercontent.com/roralsorom/clang/refs/heads/main/Control-V%20(2).png)
+![preview](https://raw.githubusercontent.com/roralsorom/clang/refs/heads/main/preview.png)
