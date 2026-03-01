@@ -1,385 +1,369 @@
-// DOM Elements
-const codeInput = document.getElementById( 'codeInput' );
-const output = document.getElementById( 'output' );
-const analyzeBtn = document.getElementById( 'analyzeBtn' );
-const generateBtn = document.getElementById( 'generateBtn' );
-const copyBtn = document.getElementById( 'copyBtn' );
-const downloadBtn = document.getElementById( 'downloadBtn' );
-const customToggle = document.getElementById( 'customToggle' );
-const customOptions = document.getElementById( 'customOptions' );
-const settingsList = document.getElementById( 'settingsList' );
-const toast = document.getElementById( 'toast' );
-const toastMessage = document.getElementById( 'toastMessage' );
+(function() {
+    'use strict';
 
-// Settings elements
-const indentWidth = document.getElementById( 'indentWidth' );
-const useTabs = document.getElementById( 'useTabs' );
-const spacesInParens = document.getElementById( 'spacesInParens' );
-const spaceInEmptyParens = document.getElementById( 'spaceInEmptyParens' );
-const spacesInAngles = document.getElementById( 'spacesInAngles' );
-const spacesInSquare = document.getElementById( 'spacesInSquare' );
-const braceStyle = document.getElementById( 'braceStyle' );
-const spaceBeforeParens = document.getElementById( 'spaceBeforeParens' );
-const pointerAlign = document.getElementById( 'pointerAlign' );
-const columnLimit = document.getElementById( 'columnLimit' );
+    // elements
+    const $ = id => document.getElementById(id);
+    
+    const codeInput = $('codeInput');
+    const output = $('output');
+    const detectedTags = $('detectedTags');
+    const configPanel = $('configPanel');
+    const configToggle = $('configToggle');
+    const toast = $('toast');
 
-// Default LLVM settings (baseline)
-const defaultSettings = {
-    IndentWidth: 2,
-    UseTab: false,
-    SpacesInParentheses: false,
-    SpaceInEmptyParentheses: false,
-    SpacesInAngles: false,
-    SpacesInSquareBrackets: false,
-    BreakBeforeBraces: 'Attach',
-    SpaceBeforeParens: 'ControlStatements',
-    PointerAlignment: 'Right',
-    ColumnLimit: 80
-};
-
-// Toggle customization panel
-customToggle.addEventListener( 'click', () => {
-    customOptions.classList.toggle( 'open' );
-    customToggle.querySelector( '.toggle-icon' ).classList.toggle( 'rotated' );
-} );
-
-// Analyze code button
-analyzeBtn.addEventListener( 'click', () => {
-    const code = codeInput.value;
-    if ( !code.trim() ) {
-        showToast( 'Please enter some code first', 'warning' );
-        return;
-    }
-    
-    const detected = analyzeCode( code );
-    updateSettingsFromDetected( detected );
-    displayDetectedSettings( detected );
-    generateClangFormat();
-} );
-
-// Generate button
-generateBtn.addEventListener( 'click', generateClangFormat );
-
-// Copy button
-copyBtn.addEventListener( 'click', () => {
-    const text = output.textContent;
-    if ( text.includes( 'Click "Generate"' ) ) {
-        showToast( 'Generate a config first', 'warning' );
-        return;
-    }
-    
-    navigator.clipboard.writeText( text ).then( () => {
-        showToast( 'Copied to clipboard!' );
-    } );
-} );
-
-// Download button
-downloadBtn.addEventListener( 'click', () => {
-    const text = output.textContent;
-    if ( text.includes( 'Click "Generate"' ) ) {
-        showToast( 'Generate a config first', 'warning' );
-        return;
-    }
-    
-    const blob = new Blob( [ text ], { type: 'text/plain' } );
-    const url = URL.createObjectURL( blob );
-    const a = document.createElement( 'a' );
-    a.href = url;
-    a.download = '.clang-format';
-    document.body.appendChild( a );
-    a.click();
-    document.body.removeChild( a );
-    URL.revokeObjectURL( url );
-    showToast( 'File downloaded!' );
-} );
-
-// Analyze code for style patterns
-function analyzeCode( code ) {
-    const detected = {};
-    
-    // Detect spaces in parentheses: func( x ) vs func(x)
-    if ( /\(\s+\S/.test( code ) && /\S\s+\)/.test( code ) ) {
-        detected.SpacesInParentheses = true;
-    } else if ( /\(\S/.test( code ) && /\S\)/.test( code ) ) {
-        detected.SpacesInParentheses = false;
-    }
-    
-    // Detect space in empty parentheses: func( ) vs func()
-    if ( /\(\s+\)/.test( code ) ) {
-        detected.SpaceInEmptyParentheses = true;
-    } else if ( /\(\)/.test( code ) ) {
-        detected.SpaceInEmptyParentheses = false;
-    }
-    
-    // Detect spaces in angle brackets: < int > vs <int>
-    if ( /<\s+\w/.test( code ) && /\w\s+>/.test( code ) ) {
-        detected.SpacesInAngles = true;
-    } else if ( /<\w/.test( code ) && /\w>/.test( code ) ) {
-        detected.SpacesInAngles = false;
-    }
-    
-    // Detect spaces in square brackets: [ i ] vs [i]
-    if ( /\[\s+\w/.test( code ) && /\w\s+\]/.test( code ) ) {
-        detected.SpacesInSquareBrackets = true;
-    } else if ( /\[\w/.test( code ) && /\w\]/.test( code ) ) {
-        detected.SpacesInSquareBrackets = false;
-    }
-    
-    // Detect brace style
-    if ( /\)\s*\n\s*\{/.test( code ) ) {
-        detected.BreakBeforeBraces = 'Allman';
-    } else if ( /\)\s*\{/.test( code ) ) {
-        detected.BreakBeforeBraces = 'Attach';
-    }
-    
-    // Detect indentation
-    const lines = code.split( '\n' );
-    for ( const line of lines ) {
-        const match = line.match( /^(\s+)\S/ );
-        if ( match ) {
-            const indent = match[ 1 ];
-            if ( indent.includes( '\t' ) ) {
-                detected.UseTab = true;
-                detected.IndentWidth = 4;
-            } else {
-                detected.UseTab = false;
-                detected.IndentWidth = indent.length;
+    // sample code
+    const sampleCode = `class EntityManager {
+public:
+    void update( float deltaTime ) {
+        for ( auto& entity : m_entities ) {
+            if ( entity->isActive( ) ) {
+                entity->tick( deltaTime );
             }
-            break;
         }
     }
-    
-    // Detect space before parens in control statements: if ( vs if(
-    if ( /\b(if|for|while|switch)\s+\(/.test( code ) ) {
-        detected.SpaceBeforeControlStatementParens = true;
-    } else if ( /\b(if|for|while|switch)\(/.test( code ) ) {
-        detected.SpaceBeforeControlStatementParens = false;
-    }
-    
-    // Detect space before function parens: func ( vs func(
-    if ( /\w\s+\(\s*\)/.test( code ) && !/\b(if|for|while|switch)\s+\(/.test( code ) ) {
-        detected.SpaceBeforeParens = 'Always';
-    } else if ( /\b(if|for|while|switch)\s+\(/.test( code ) && /\w\(\s*\)/.test( code ) ) {
-        detected.SpaceBeforeParens = 'ControlStatements';
-    }
-    
-    // Detect pointer alignment: int* p vs int *p vs int * p
-    if ( /\w+\*\s+\w/.test( code ) ) {
-        detected.PointerAlignment = 'Left';
-    } else if ( /\w+\s+\*\w/.test( code ) ) {
-        detected.PointerAlignment = 'Right';
-    } else if ( /\w+\s+\*\s+\w/.test( code ) ) {
-        detected.PointerAlignment = 'Middle';
-    }
-    
-    return detected;
-}
 
-// Update UI settings from detected values
-function updateSettingsFromDetected( detected ) {
-    if ( detected.IndentWidth !== undefined ) {
-        indentWidth.value = detected.IndentWidth;
+    Entity* spawn( const std::string& name, const Vec3& position ) {
+        auto entity = std::make_unique< Entity >( name );
+        entity->setPosition( position );
+        m_entities.push_back( std::move( entity ) );
+        return m_entities.back( ).get( );
     }
-    if ( detected.UseTab !== undefined ) {
-        useTabs.checked = detected.UseTab;
-    }
-    if ( detected.SpacesInParentheses !== undefined ) {
-        spacesInParens.checked = detected.SpacesInParentheses;
-    }
-    if ( detected.SpaceInEmptyParentheses !== undefined ) {
-        spaceInEmptyParens.checked = detected.SpaceInEmptyParentheses;
-    }
-    if ( detected.SpacesInAngles !== undefined ) {
-        spacesInAngles.checked = detected.SpacesInAngles;
-    }
-    if ( detected.SpacesInSquareBrackets !== undefined ) {
-        spacesInSquare.checked = detected.SpacesInSquareBrackets;
-    }
-    if ( detected.BreakBeforeBraces !== undefined ) {
-        braceStyle.value = detected.BreakBeforeBraces;
-    }
-    if ( detected.SpaceBeforeParens !== undefined ) {
-        spaceBeforeParens.value = detected.SpaceBeforeParens;
-    }
-    if ( detected.PointerAlignment !== undefined ) {
-        pointerAlign.value = detected.PointerAlignment;
-    }
-}
 
-// Display detected settings as tags
-function displayDetectedSettings( detected ) {
-    const keys = Object.keys( detected );
-    
-    if ( keys.length === 0 ) {
-        settingsList.innerHTML = '<p class="no-settings">No patterns detected</p>';
-        return;
-    }
-    
-    let html = '';
-    for ( const key of keys ) {
-        const value = detected[ key ];
-        html += `<span class="setting-tag">
-            <span class="tag-name">${key}:</span>
-            <span class="tag-value">${value}</span>
-        </span>`;
-    }
-    settingsList.innerHTML = html;
-}
-
-// Generate .clang-format content
-function generateClangFormat() {
-    const settings = getCurrentSettings();
-    const changedSettings = getChangedSettings( settings );
-    
-    if ( Object.keys( changedSettings ).length === 0 ) {
-        output.innerHTML = '<span class="comment"># No changes from default LLVM style</span>\n' +
-                          '<span class="key">BasedOnStyle</span>: <span class="value">LLVM</span>';
-        return;
-    }
-    
-    let content = '# Generated by Clang-Format Generator\n';
-    content += '# Only includes settings that differ from LLVM defaults\n\n';
-    content += 'BasedOnStyle: LLVM\n';
-    content += 'Language: Cpp\n\n';
-    
-    // Group settings by category
-    const categories = {
-        'Indentation': [ 'IndentWidth', 'TabWidth', 'UseTab' ],
-        'Spacing': [ 'SpacesInParentheses', 'SpaceInEmptyParentheses', 'SpacesInAngles', 
-                    'SpacesInSquareBrackets', 'SpacesInContainerLiterals' ],
-        'Braces': [ 'BreakBeforeBraces' ],
-        'Parentheses': [ 'SpaceBeforeParens' ],
-        'Alignment': [ 'PointerAlignment' ],
-        'Line': [ 'ColumnLimit' ]
-    };
-    
-    for ( const [ category, keys ] of Object.entries( categories ) ) {
-        const categorySettings = keys.filter( k => changedSettings[ k ] !== undefined );
-        if ( categorySettings.length > 0 ) {
-            content += `# ${category}\n`;
-            for ( const key of categorySettings ) {
-                content += formatSetting( key, changedSettings[ key ] );
-            }
-            content += '\n';
+    template< typename T >
+    T* findComponent( uint32_t entityId ) {
+        if ( auto it = m_components.find( entityId ); it != m_components.end( ) ) {
+            return static_cast< T* >( it->second.get( ) );
         }
+        return nullptr;
     }
-    
-    // Display with syntax highlighting
-    output.innerHTML = highlightYaml( content );
-    showToast( 'Configuration generated!' );
-}
 
-// Get current settings from UI
-function getCurrentSettings() {
-    return {
-        IndentWidth: parseInt( indentWidth.value ),
-        TabWidth: parseInt( indentWidth.value ),
-        UseTab: useTabs.checked ? 'Always' : 'Never',
-        SpacesInParentheses: spacesInParens.checked,
-        SpaceInEmptyParentheses: spaceInEmptyParens.checked,
-        SpacesInAngles: spacesInAngles.checked,
-        SpacesInSquareBrackets: spacesInSquare.checked,
-        SpacesInContainerLiterals: spacesInParens.checked,
-        BreakBeforeBraces: braceStyle.value,
-        SpaceBeforeParens: spaceBeforeParens.value,
-        PointerAlignment: pointerAlign.value,
-        ColumnLimit: parseInt( columnLimit.value )
-    };
-}
+private:
+    std::vector< std::unique_ptr< Entity > > m_entities;
+    std::unordered_map< uint32_t, std::unique_ptr< Component > > m_components;
+};`;
 
-// Get only settings that differ from defaults
-function getChangedSettings( settings ) {
-    const changed = {};
-    
-    // Map to defaults
-    const defaultMap = {
+    // llvm defaults (what we compare against)
+    const defaults = {
         IndentWidth: 2,
-        TabWidth: 2,
         UseTab: 'Never',
+        IndentCaseLabels: false,
+        IndentPPDirectives: 'None',
         SpacesInParentheses: false,
         SpaceInEmptyParentheses: false,
-        SpacesInAngles: false,
+        SpacesInAngles: 'Never',
         SpacesInSquareBrackets: false,
-        SpacesInContainerLiterals: false,
+        SpaceAfterCStyleCast: false,
+        SpaceBeforeAssignmentOperators: true,
         BreakBeforeBraces: 'Attach',
         SpaceBeforeParens: 'ControlStatements',
         PointerAlignment: 'Right',
-        ColumnLimit: 80
+        AlignConsecutiveAssignments: 'None',
+        AlignConsecutiveDeclarations: 'None',
+        AlignTrailingComments: true,
+        ColumnLimit: 80,
+        MaxEmptyLinesToKeep: 1,
+        BinPackArguments: true,
+        BinPackParameters: true,
+        AllowShortFunctionsOnASingleLine: 'All',
+        AllowShortIfStatementsOnASingleLine: 'Never',
+        AllowShortLoopsOnASingleLine: false,
+        AllowShortBlocksOnASingleLine: 'Never',
+        SortIncludes: 'CaseSensitive',
+        FixNamespaceComments: true,
+        CompactNamespaces: false,
+        AlwaysBreakTemplateDeclarations: 'MultiLine'
     };
-    
-    for ( const [ key, value ] of Object.entries( settings ) ) {
-        if ( defaultMap[ key ] !== undefined && defaultMap[ key ] !== value ) {
-            changed[ key ] = value;
+
+    // init
+    codeInput.value = sampleCode;
+
+    // toggle config panel
+    configToggle.onclick = () => {
+        configToggle.classList.toggle('open');
+        configPanel.classList.toggle('show');
+    };
+
+    // clear button
+    $('clearBtn').onclick = () => {
+        codeInput.value = '';
+        codeInput.focus();
+    };
+
+    // analyze
+    $('analyzeBtn').onclick = () => {
+        const code = codeInput.value.trim();
+        if (!code) {
+            notify('paste some code first');
+            return;
         }
-    }
-    
-    return changed;
-}
+        const detected = analyze(code);
+        applyDetected(detected);
+        showDetected(detected);
+        generate();
+    };
 
-// Format a single setting for YAML
-function formatSetting( key, value ) {
-    if ( typeof value === 'boolean' ) {
-        return `${key}: ${value}\n`;
-    } else if ( typeof value === 'number' ) {
-        return `${key}: ${value}\n`;
-    } else {
-        return `${key}: ${value}\n`;
-    }
-}
+    // generate
+    $('generateBtn').onclick = generate;
 
-// Syntax highlight YAML
-function highlightYaml( content ) {
-    return content
-        .replace( /(#.*)/g, '<span class="comment">$1</span>' )
-        .replace( /^(\w+):/gm, '<span class="key">$1</span>:' )
-        .replace( /: (true)/g, ': <span class="value-bool-true">$1</span>' )
-        .replace( /: (false)/g, ': <span class="value-bool-false">$1</span>' )
-        .replace( /: (\d+)/g, ': <span class="value-number">$1</span>' )
-        .replace( /: (\w+)$/gm, ( match, p1 ) => {
-            if ( p1 === 'true' || p1 === 'false' || !isNaN( p1 ) ) {
-                return match;
+    // copy
+    $('copyBtn').onclick = () => {
+        const txt = output.textContent;
+        if (txt.includes('paste code')) {
+            notify('generate something first');
+            return;
+        }
+        navigator.clipboard.writeText(txt);
+        notify('copied!');
+    };
+
+    // download
+    $('downloadBtn').onclick = () => {
+        const txt = output.textContent;
+        if (txt.includes('paste code')) {
+            notify('generate something first');
+            return;
+        }
+        const blob = new Blob([txt], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = '.clang-format';
+        a.click();
+        URL.revokeObjectURL(url);
+        notify('downloaded!');
+    };
+
+    // auto-regen on config change
+    configPanel.querySelectorAll('input, select').forEach(el => {
+        el.onchange = () => {
+            if (!output.textContent.includes('paste code')) {
+                generate();
             }
-            return `: <span class="value">${p1}</span>`;
-        } );
-}
+        };
+    });
 
-// Show toast notification
-function showToast( message, type = 'success' ) {
-    toastMessage.textContent = message;
-    toast.style.borderColor = type === 'warning' ? 'var(--warning)' : 'var(--success)';
-    toast.querySelector( '.toast-icon' ).style.background = 
-        type === 'warning' ? 'var(--warning)' : 'var(--success)';
-    toast.classList.add( 'show' );
-    
-    setTimeout( () => {
-        toast.classList.remove( 'show' );
-    }, 2500 );
-}
+    // analyze code patterns
+    function analyze(code) {
+        const r = {};
 
-// Auto-generate on setting change
-const allInputs = document.querySelectorAll( '.custom-options input, .custom-options select' );
-allInputs.forEach( input => {
-    input.addEventListener( 'change', () => {
-        if ( !output.textContent.includes( 'Click "Generate"' ) ) {
-            generateClangFormat();
+        // spaces in parens: ( x ) vs (x)
+        if (/\(\s+\S/.test(code) && /\S\s+\)/.test(code)) {
+            r.SpacesInParentheses = true;
+        } else if (/\(\S/.test(code) || /\S\)/.test(code)) {
+            r.SpacesInParentheses = false;
         }
-    } );
-} );
 
-// Initialize with sample code
-document.addEventListener( 'DOMContentLoaded', () => {
-    codeInput.value = `auto g_driver = std::make_unique< driver::c_driver >( );
+        // empty parens: ( ) vs ()
+        if (/\(\s+\)/.test(code)) {
+            r.SpaceInEmptyParentheses = true;
+        } else if (/\(\)/.test(code)) {
+            r.SpaceInEmptyParentheses = false;
+        }
 
-int main( ) {
-    if ( !g_driver->initialize( ) )
-        return std::getchar( );
+        // angle brackets: < T > vs <T>
+        if (/<\s+\w/.test(code) && /\w\s+>/.test(code)) {
+            r.SpacesInAngles = 'Always';
+        } else if (/<\w/.test(code)) {
+            r.SpacesInAngles = 'Never';
+        }
 
-    auto process_id = g_driver->get_process_id( L"notepad.exe" );
-    if ( !process_id )
-        return std::getchar( );
+        // square brackets
+        if (/\[\s+\w/.test(code)) {
+            r.SpacesInSquareBrackets = true;
+        }
 
-    std::cout << "process_id: " << process_id << std::endl;
+        // brace style
+        if (/\)\s*\n\s*\{/.test(code)) {
+            r.BreakBeforeBraces = 'Allman';
+        } else if (/\)\s*\{/.test(code)) {
+            r.BreakBeforeBraces = 'Attach';
+        }
 
-    return std::getchar( );
-}`;
-} );
+        // indentation
+        const lines = code.split('\n');
+        for (const line of lines) {
+            const m = line.match(/^(\s+)\S/);
+            if (m) {
+                const ws = m[1];
+                if (ws.includes('\t')) {
+                    r.UseTab = 'Always';
+                    r.IndentWidth = 4;
+                } else {
+                    r.UseTab = 'Never';
+                    r.IndentWidth = ws.length;
+                    if (r.IndentWidth > 8) r.IndentWidth = 4; // probably continuation
+                }
+                break;
+            }
+        }
+
+        // space before paren: if ( vs if(
+        const hasSpaceControl = /\b(if|for|while|switch)\s+\(/.test(code);
+        const noSpaceControl = /\b(if|for|while|switch)\(/.test(code);
+        if (hasSpaceControl && !noSpaceControl) {
+            r.SpaceBeforeParens = 'ControlStatements';
+        } else if (noSpaceControl) {
+            r.SpaceBeforeParens = 'Never';
+        }
+
+        // pointer align
+        if (/\w+\*\s+\w/.test(code) && !/\w\s+\*\w/.test(code)) {
+            r.PointerAlignment = 'Left';
+        } else if (/\w\s+\*\w/.test(code)) {
+            r.PointerAlignment = 'Right';
+        }
+
+        // template
+        if (/template\s*<[^>]+>\s*\n/.test(code)) {
+            r.AlwaysBreakTemplateDeclarations = 'Yes';
+        }
+
+        return r;
+    }
+
+    // apply detected settings to UI
+    function applyDetected(d) {
+        if (d.IndentWidth != null) $('optIndentWidth').value = d.IndentWidth;
+        if (d.UseTab != null) $('optUseTabs').checked = d.UseTab === 'Always';
+        if (d.SpacesInParentheses != null) $('optSpaceParens').checked = d.SpacesInParentheses;
+        if (d.SpaceInEmptyParentheses != null) $('optSpaceEmptyParens').checked = d.SpaceInEmptyParentheses;
+        if (d.SpacesInAngles != null) $('optSpaceAngles').checked = d.SpacesInAngles === 'Always';
+        if (d.SpacesInSquareBrackets != null) $('optSpaceBrackets').checked = d.SpacesInSquareBrackets;
+        if (d.BreakBeforeBraces != null) $('optBraceStyle').value = d.BreakBeforeBraces;
+        if (d.SpaceBeforeParens != null) $('optSpaceBeforeParen').value = d.SpaceBeforeParens;
+        if (d.PointerAlignment != null) $('optPointerAlign').value = d.PointerAlignment;
+        if (d.AlwaysBreakTemplateDeclarations != null) $('optBreakTemplate').value = d.AlwaysBreakTemplateDeclarations;
+    }
+
+    // show detected as tags
+    function showDetected(d) {
+        const keys = Object.keys(d);
+        if (!keys.length) {
+            detectedTags.innerHTML = '<span class="muted">no patterns found</span>';
+            return;
+        }
+        detectedTags.innerHTML = keys.map(k => 
+            `<span class="tag"><span class="tag-k">${k}:</span><span class="tag-v">${d[k]}</span></span>`
+        ).join('');
+    }
+
+    // read current settings from UI
+    function readSettings() {
+        const indent = parseInt($('optIndentWidth').value) || 4;
+        return {
+            IndentWidth: indent,
+            TabWidth: indent,
+            UseTab: $('optUseTabs').checked ? 'Always' : 'Never',
+            IndentCaseLabels: $('optIndentCase').checked,
+            IndentPPDirectives: $('optIndentPP').checked ? 'BeforeHash' : 'None',
+            SpacesInParentheses: $('optSpaceParens').checked,
+            SpaceInEmptyParentheses: $('optSpaceEmptyParens').checked,
+            SpacesInAngles: $('optSpaceAngles').checked ? 'Always' : 'Never',
+            SpacesInSquareBrackets: $('optSpaceBrackets').checked,
+            SpaceAfterCStyleCast: $('optSpaceAfterCast').checked,
+            SpaceBeforeAssignmentOperators: $('optSpaceBeforeAssign').checked,
+            BreakBeforeBraces: $('optBraceStyle').value,
+            SpaceBeforeParens: $('optSpaceBeforeParen').value,
+            PointerAlignment: $('optPointerAlign').value,
+            AlignConsecutiveAssignments: $('optAlignAssign').checked ? 'Consecutive' : 'None',
+            AlignConsecutiveDeclarations: $('optAlignDecl').checked ? 'Consecutive' : 'None',
+            AlignTrailingComments: $('optAlignComments').checked,
+            ColumnLimit: parseInt($('optColumnLimit').value) || 0,
+            MaxEmptyLinesToKeep: parseInt($('optMaxEmptyLines').value) || 1,
+            BinPackArguments: $('optBinPackArgs').checked,
+            BinPackParameters: $('optBinPackParams').checked,
+            AllowShortFunctionsOnASingleLine: $('optShortFunctions').value,
+            AllowShortIfStatementsOnASingleLine: $('optShortIf').value,
+            AllowShortLoopsOnASingleLine: $('optShortLoops').checked,
+            AllowShortBlocksOnASingleLine: $('optShortBlocks').checked ? 'Always' : 'Never',
+            SortIncludes: $('optSortIncludes').checked ? 'CaseSensitive' : 'Never',
+            FixNamespaceComments: $('optFixNsComments').checked,
+            CompactNamespaces: $('optCompactNs').checked,
+            AlwaysBreakTemplateDeclarations: $('optBreakTemplate').value
+        };
+    }
+
+    // get only changed settings
+    function getChanged(settings) {
+        const changed = {};
+        for (const [k, v] of Object.entries(settings)) {
+            if (defaults[k] !== v) {
+                changed[k] = v;
+            }
+        }
+        return changed;
+    }
+
+    // generate output
+    function generate() {
+        const settings = readSettings();
+        const changed = getChanged(settings);
+        const keys = Object.keys(changed);
+
+        if (!keys.length) {
+            output.innerHTML = '<span class="cmt"># identical to LLVM defaults</span>\nBasedOnStyle: LLVM';
+            return;
+        }
+
+        let out = '';
+        out += '# .clang-format\n';
+        out += '# generated - only non-default values\n\n';
+        out += 'BasedOnStyle: LLVM\n';
+        out += 'Language: Cpp\n';
+
+        // group by category for cleaner output
+        const groups = {
+            indent: ['IndentWidth', 'TabWidth', 'UseTab', 'IndentCaseLabels', 'IndentPPDirectives'],
+            spacing: ['SpacesInParentheses', 'SpaceInEmptyParentheses', 'SpacesInAngles', 
+                     'SpacesInSquareBrackets', 'SpaceAfterCStyleCast', 'SpaceBeforeAssignmentOperators'],
+            braces: ['BreakBeforeBraces', 'SpaceBeforeParens'],
+            align: ['PointerAlignment', 'AlignConsecutiveAssignments', 'AlignConsecutiveDeclarations', 'AlignTrailingComments'],
+            lines: ['ColumnLimit', 'MaxEmptyLinesToKeep', 'BinPackArguments', 'BinPackParameters'],
+            short: ['AllowShortFunctionsOnASingleLine', 'AllowShortIfStatementsOnASingleLine', 
+                   'AllowShortLoopsOnASingleLine', 'AllowShortBlocksOnASingleLine'],
+            other: ['SortIncludes', 'FixNamespaceComments', 'CompactNamespaces', 'AlwaysBreakTemplateDeclarations']
+        };
+
+        for (const [group, groupKeys] of Object.entries(groups)) {
+            const has = groupKeys.filter(k => changed[k] !== undefined);
+            if (has.length) {
+                out += '\n';
+                for (const k of has) {
+                    out += `${k}: ${formatVal(changed[k])}\n`;
+                }
+            }
+        }
+
+        output.innerHTML = highlight(out);
+        notify('done');
+    }
+
+    // format value for yaml
+    function formatVal(v) {
+        if (typeof v === 'boolean') return v ? 'true' : 'false';
+        if (typeof v === 'number') return v.toString();
+        return v;
+    }
+
+    // syntax highlight
+    function highlight(s) {
+        return s
+            .replace(/(#[^\n]*)/g, '<span class="cmt">$1</span>')
+            .replace(/^(\w+):/gm, '<span class="key">$1</span>:')
+            .replace(/: (true)$/gm, ': <span class="bool-t">$1</span>')
+            .replace(/: (false)$/gm, ': <span class="bool-f">$1</span>')
+            .replace(/: (\d+)$/gm, ': <span class="num">$1</span>')
+            .replace(/: ([A-Za-z]+)$/gm, (m, p) => {
+                if (p === 'true' || p === 'false') return m;
+                return `: <span class="str">${p}</span>`;
+            });
+    }
+
+    // toast notification
+    function notify(msg) {
+        toast.textContent = msg;
+        toast.classList.add('show');
+        setTimeout(() => toast.classList.remove('show'), 1800);
+    }
+
+})();
