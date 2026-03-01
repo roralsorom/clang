@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clang-Format Generator</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <div class="logo">
+                <span class="logo-icon">&lt;/&gt;</span>
+                <h1>Clang-Format Generator</h1>
+            </div>
+            <p class="subtitle">Generate .clang-format files from code examples or custom settings</p>
+        </header>
+
+        <!-- Shortcut Banner -->
+        <div class="shortcut-banner">
+            <div class="shortcut-icon">⌨️</div>
+            <div class="shortcut-text">
+                <span class="shortcut-label">Visual Studio Format Shortcut:</span>
+                <div class="shortcut-keys">
+                    <kbd>Ctrl</kbd> + <kbd>K</kbd>, <kbd>Ctrl</kbd> + <kbd>D</kbd>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="main-content">
+            <!-- Left Panel - Input -->
+            <div class="panel input-panel">
+                <div class="panel-header">
+                    <h2>Code Example</h2>
+                    <p>Paste your code to detect formatting style</p>
+                </div>
+                <div class="code-input-wrapper">
+                    <textarea id="codeInput" placeholder="// Paste your code here...
+// The generator will detect your style
+
+int main( ) {
+    if ( condition ) {
+        doSomething( );
+    }
+    return 0;
+}"></textarea>
+                    <button class="btn btn-secondary" id="analyzeBtn">
+                        <span class="btn-icon">🔍</span>
+                        Analyze Code
+                    </button>
+                </div>
+
+                <!-- Customization Options -->
+                <div class="customization-section">
+                    <div class="section-header" id="customToggle">
+                        <h3>⚙️ Manual Customization</h3>
+                        <span class="toggle-icon">▼</span>
+                    </div>
+                    <div class="custom-options" id="customOptions">
+                        <!-- Indentation -->
+                        <div class="option-group">
+                            <label>Indentation</label>
+                            <div class="option-row">
+                                <div class="option-item">
+                                    <span>Indent Width</span>
+                                    <input type="number" id="indentWidth" value="4" min="1" max="8">
+                                </div>
+                                <div class="option-item">
+                                    <span>Use Tabs</span>
+                                    <label class="switch">
+                                        <input type="checkbox" id="useTabs">
+                                        <span class="slider"></span>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Spacing -->
+                        <div class="option-group">
+                            <label>Spacing</label>
+                            <div class="option-row">
+                                <div class="option-item">
+                                    <span>Spaces in Parentheses</span>
+                                    <label class="switch">
+                                        <input type="checkbox" id="spacesInParens" checked>
+                                        <span class="slider"></span>
+                                    </label>
+                                </div>
+                                <div class="option-item">
+                                    <span>Space in Empty Parens</span>
+                                    <label class="switch">
+                                        <input type="checkbox" id="spaceInEmptyParens" checked>
+                                        <span class="slider"></span>
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="option-row">
+                                <div class="option-item">
+                                    <span>Spaces in Angle Brackets</span>
+                                    <label class="switch">
+                                        <input type="checkbox" id="spacesInAngles" checked>
+                                        <span class="slider"></span>
+                                    </label>
+                                </div>
+                                <div class="option-item">
+                                    <span>Spaces in Square Brackets</span>
+                                    <label class="switch">
+                                        <input type="checkbox" id="spacesInSquare">
+                                        <span class="slider"></span>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Braces -->
+                        <div class="option-group">
+                            <label>Braces Style</label>
+                            <div class="option-row">
+                                <div class="option-item full">
+                                    <span>Break Before Braces</span>
+                                    <select id="braceStyle">
+                                        <option value="Attach">Attach (K&R)</option>
+                                        <option value="Allman">Allman</option>
+                                        <option value="GNU">GNU</option>
+                                        <option value="Linux">Linux</option>
+                                        <option value="Stroustrup">Stroustrup</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Space Before Parens -->
+                        <div class="option-group">
+                            <label>Space Before Parentheses</label>
+                            <div class="option-row">
+                                <div class="option-item full">
+                                    <span>Style</span>
+                                    <select id="spaceBeforeParens">
+                                        <option value="ControlStatements">Control Statements Only</option>
+                                        <option value="Always">Always</option>
+                                        <option value="Never">Never</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Pointer Alignment -->
+                        <div class="option-group">
+                            <label>Pointer Alignment</label>
+                            <div class="option-row">
+                                <div class="option-item full">
+                                    <span>Align To</span>
+                                    <select id="pointerAlign">
+                                        <option value="Left">Left (int* p)</option>
+                                        <option value="Right">Right (int *p)</option>
+                                        <option value="Middle">Middle (int * p)</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Column Limit -->
+                        <div class="option-group">
+                            <label>Line Length</label>
+                            <div class="option-row">
+                                <div class="option-item">
+                                    <span>Column Limit</span>
+                                    <input type="number" id="columnLimit" value="0" min="0" max="200">
+                                </div>
+                                <div class="option-item">
+                                    <span class="hint">0 = no limit</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <button class="btn btn-primary" id="generateBtn">
+                    <span class="btn-icon">⚡</span>
+                    Generate .clang-format
+                </button>
+            </div>
+
+            <!-- Right Panel - Output -->
+            <div class="panel output-panel">
+                <div class="panel-header">
+                    <h2>.clang-format</h2>
+                    <p>Generated configuration file</p>
+                </div>
+                <div class="output-wrapper">
+                    <pre id="output"><span class="placeholder"># Click "Generate" or "Analyze Code" to create your .clang-format file</span></pre>
+                    <div class="output-actions">
+                        <button class="btn btn-icon-only" id="copyBtn" title="Copy to clipboard">
+                            📋
+                        </button>
+                        <button class="btn btn-icon-only" id="downloadBtn" title="Download file">
+                            💾
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Detected Settings -->
+                <div class="detected-settings" id="detectedSettings">
+                    <h3>🔎 Detected Settings</h3>
+                    <div class="settings-list" id="settingsList">
+                        <p class="no-settings">Analyze code to see detected settings</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <p>Made for developers who care about code formatting</p>
+        </footer>
+    </div>
+
+    <!-- Toast Notification -->
+    <div class="toast" id="toast">
+        <span class="toast-icon">✓</span>
+        <span class="toast-message" id="toastMessage">Copied to clipboard!</span>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
