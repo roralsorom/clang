@@ -3,226 +3,272 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Clang-Format Generator</title>
+    <title>clang-format generator</title>
     <link rel="stylesheet" href="style.css">
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
-    <div class="container">
-        <!-- Header -->
-        <header class="header">
-            <div class="logo">
-                <span class="logo-icon">&lt;/&gt;</span>
-                <h1>Clang-Format Generator</h1>
+    <div class="app">
+        <header>
+            <div class="brand">
+                <span class="brand-icon">{}</span>
+                <h1>clang-format generator</h1>
             </div>
-            <p class="subtitle">Generate .clang-format files from code examples or custom settings</p>
+            <p class="tagline">stop writing .clang-format files by hand</p>
         </header>
 
-        <!-- Shortcut Banner -->
-        <div class="shortcut-banner">
-            <div class="shortcut-icon">⌨️</div>
-            <div class="shortcut-text">
-                <span class="shortcut-label">Visual Studio Format Shortcut:</span>
-                <div class="shortcut-keys">
-                    <kbd>Ctrl</kbd> + <kbd>K</kbd>, <kbd>Ctrl</kbd> + <kbd>D</kbd>
-                </div>
-            </div>
+        <div class="hotkey-bar">
+            <span class="hotkey-label">format in VS:</span>
+            <kbd>Ctrl</kbd><span>+</span><kbd>K</kbd><span>,</span><kbd>Ctrl</kbd><span>+</span><kbd>D</kbd>
+            <span class="hotkey-sep">|</span>
+            <span class="hotkey-label">VS Code:</span>
+            <kbd>Shift</kbd><span>+</span><kbd>Alt</kbd><span>+</span><kbd>F</kbd>
         </div>
 
-        <!-- Main Content -->
-        <div class="main-content">
-            <!-- Left Panel - Input -->
-            <div class="panel input-panel">
-                <div class="panel-header">
-                    <h2>Code Example</h2>
-                    <p>Paste your code to detect formatting style</p>
+        <main>
+            <section class="editor-pane">
+                <div class="pane-head">
+                    <h2>code example</h2>
+                    <button class="btn-sm" id="clearBtn">clear</button>
                 </div>
-                <div class="code-input-wrapper">
-                    <textarea id="codeInput" placeholder="// Paste your code here...
-// The generator will detect your style
 
-int main( ) {
-    if ( condition ) {
-        doSomething( );
-    }
-    return 0;
-}"></textarea>
-                    <button class="btn btn-secondary" id="analyzeBtn">
-                        <span class="btn-icon">🔍</span>
-                        Analyze Code
+                <textarea id="codeInput" spellcheck="false"></textarea>
+
+                <div class="action-row">
+                    <button class="btn btn-accent" id="analyzeBtn">
+                        <span>analyze</span>
                     </button>
                 </div>
 
-                <!-- Customization Options -->
-                <div class="customization-section">
-                    <div class="section-header" id="customToggle">
-                        <h3>⚙️ Manual Customization</h3>
-                        <span class="toggle-icon">▼</span>
-                    </div>
-                    <div class="custom-options" id="customOptions">
-                        <!-- Indentation -->
-                        <div class="option-group">
-                            <label>Indentation</label>
-                            <div class="option-row">
-                                <div class="option-item">
-                                    <span>Indent Width</span>
-                                    <input type="number" id="indentWidth" value="4" min="1" max="8">
-                                </div>
-                                <div class="option-item">
-                                    <span>Use Tabs</span>
-                                    <label class="switch">
-                                        <input type="checkbox" id="useTabs">
-                                        <span class="slider"></span>
-                                    </label>
-                                </div>
+                <div class="config-section">
+                    <button class="section-toggle" id="configToggle">
+                        <span>manual config</span>
+                        <span class="arrow">›</span>
+                    </button>
+
+                    <div class="config-panel" id="configPanel">
+                        <!-- indent -->
+                        <div class="config-group">
+                            <span class="group-label">indentation</span>
+                            <div class="config-grid">
+                                <label>
+                                    <span>width</span>
+                                    <input type="number" id="optIndentWidth" value="4" min="1" max="8">
+                                </label>
+                                <label>
+                                    <span>use tabs</span>
+                                    <input type="checkbox" id="optUseTabs">
+                                </label>
+                                <label>
+                                    <span>indent case labels</span>
+                                    <input type="checkbox" id="optIndentCase" checked>
+                                </label>
+                                <label>
+                                    <span>indent preprocessor</span>
+                                    <input type="checkbox" id="optIndentPP">
+                                </label>
                             </div>
                         </div>
 
-                        <!-- Spacing -->
-                        <div class="option-group">
-                            <label>Spacing</label>
-                            <div class="option-row">
-                                <div class="option-item">
-                                    <span>Spaces in Parentheses</span>
-                                    <label class="switch">
-                                        <input type="checkbox" id="spacesInParens" checked>
-                                        <span class="slider"></span>
-                                    </label>
-                                </div>
-                                <div class="option-item">
-                                    <span>Space in Empty Parens</span>
-                                    <label class="switch">
-                                        <input type="checkbox" id="spaceInEmptyParens" checked>
-                                        <span class="slider"></span>
-                                    </label>
-                                </div>
-                            </div>
-                            <div class="option-row">
-                                <div class="option-item">
-                                    <span>Spaces in Angle Brackets</span>
-                                    <label class="switch">
-                                        <input type="checkbox" id="spacesInAngles" checked>
-                                        <span class="slider"></span>
-                                    </label>
-                                </div>
-                                <div class="option-item">
-                                    <span>Spaces in Square Brackets</span>
-                                    <label class="switch">
-                                        <input type="checkbox" id="spacesInSquare">
-                                        <span class="slider"></span>
-                                    </label>
-                                </div>
+                        <!-- spacing -->
+                        <div class="config-group">
+                            <span class="group-label">spacing</span>
+                            <div class="config-grid">
+                                <label>
+                                    <span>in parentheses</span>
+                                    <input type="checkbox" id="optSpaceParens" checked>
+                                </label>
+                                <label>
+                                    <span>in empty parens</span>
+                                    <input type="checkbox" id="optSpaceEmptyParens" checked>
+                                </label>
+                                <label>
+                                    <span>in angles &lt; &gt;</span>
+                                    <input type="checkbox" id="optSpaceAngles" checked>
+                                </label>
+                                <label>
+                                    <span>in brackets [ ]</span>
+                                    <input type="checkbox" id="optSpaceBrackets">
+                                </label>
+                                <label>
+                                    <span>after cast</span>
+                                    <input type="checkbox" id="optSpaceAfterCast">
+                                </label>
+                                <label>
+                                    <span>before assign =</span>
+                                    <input type="checkbox" id="optSpaceBeforeAssign" checked>
+                                </label>
                             </div>
                         </div>
 
-                        <!-- Braces -->
-                        <div class="option-group">
-                            <label>Braces Style</label>
-                            <div class="option-row">
-                                <div class="option-item full">
-                                    <span>Break Before Braces</span>
-                                    <select id="braceStyle">
-                                        <option value="Attach">Attach (K&R)</option>
-                                        <option value="Allman">Allman</option>
-                                        <option value="GNU">GNU</option>
-                                        <option value="Linux">Linux</option>
-                                        <option value="Stroustrup">Stroustrup</option>
+                        <!-- braces -->
+                        <div class="config-group">
+                            <span class="group-label">braces</span>
+                            <div class="config-grid">
+                                <label class="wide">
+                                    <span>style</span>
+                                    <select id="optBraceStyle">
+                                        <option value="Attach">attach (K&R)</option>
+                                        <option value="Allman">allman</option>
+                                        <option value="Stroustrup">stroustrup</option>
+                                        <option value="GNU">gnu</option>
+                                        <option value="WebKit">webkit</option>
+                                        <option value="Linux">linux kernel</option>
                                     </select>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Space Before Parens -->
-                        <div class="option-group">
-                            <label>Space Before Parentheses</label>
-                            <div class="option-row">
-                                <div class="option-item full">
-                                    <span>Style</span>
-                                    <select id="spaceBeforeParens">
-                                        <option value="ControlStatements">Control Statements Only</option>
-                                        <option value="Always">Always</option>
-                                        <option value="Never">Never</option>
+                                </label>
+                                <label class="wide">
+                                    <span>space before (</span>
+                                    <select id="optSpaceBeforeParen">
+                                        <option value="ControlStatements">control statements</option>
+                                        <option value="ControlStatementsExceptControlMacros">control except macros</option>
+                                        <option value="Always">always</option>
+                                        <option value="Never">never</option>
                                     </select>
-                                </div>
+                                </label>
                             </div>
                         </div>
 
-                        <!-- Pointer Alignment -->
-                        <div class="option-group">
-                            <label>Pointer Alignment</label>
-                            <div class="option-row">
-                                <div class="option-item full">
-                                    <span>Align To</span>
-                                    <select id="pointerAlign">
-                                        <option value="Left">Left (int* p)</option>
-                                        <option value="Right">Right (int *p)</option>
-                                        <option value="Middle">Middle (int * p)</option>
+                        <!-- alignment -->
+                        <div class="config-group">
+                            <span class="group-label">alignment</span>
+                            <div class="config-grid">
+                                <label class="wide">
+                                    <span>pointer/reference</span>
+                                    <select id="optPointerAlign">
+                                        <option value="Left">left (int* x)</option>
+                                        <option value="Right">right (int *x)</option>
+                                        <option value="Middle">middle (int * x)</option>
                                     </select>
-                                </div>
+                                </label>
+                                <label>
+                                    <span>align assignments</span>
+                                    <input type="checkbox" id="optAlignAssign">
+                                </label>
+                                <label>
+                                    <span>align declarations</span>
+                                    <input type="checkbox" id="optAlignDecl">
+                                </label>
+                                <label>
+                                    <span>align comments</span>
+                                    <input type="checkbox" id="optAlignComments" checked>
+                                </label>
                             </div>
                         </div>
 
-                        <!-- Column Limit -->
-                        <div class="option-group">
-                            <label>Line Length</label>
-                            <div class="option-row">
-                                <div class="option-item">
-                                    <span>Column Limit</span>
-                                    <input type="number" id="columnLimit" value="0" min="0" max="200">
-                                </div>
-                                <div class="option-item">
-                                    <span class="hint">0 = no limit</span>
-                                </div>
+                        <!-- line breaking -->
+                        <div class="config-group">
+                            <span class="group-label">line breaking</span>
+                            <div class="config-grid">
+                                <label>
+                                    <span>column limit</span>
+                                    <input type="number" id="optColumnLimit" value="0" min="0" max="200">
+                                </label>
+                                <label>
+                                    <span>max empty lines</span>
+                                    <input type="number" id="optMaxEmptyLines" value="1" min="0" max="5">
+                                </label>
+                                <label>
+                                    <span>bin pack args</span>
+                                    <input type="checkbox" id="optBinPackArgs" checked>
+                                </label>
+                                <label>
+                                    <span>bin pack params</span>
+                                    <input type="checkbox" id="optBinPackParams" checked>
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- short statements -->
+                        <div class="config-group">
+                            <span class="group-label">short statements</span>
+                            <div class="config-grid">
+                                <label class="wide">
+                                    <span>short functions</span>
+                                    <select id="optShortFunctions">
+                                        <option value="None">none</option>
+                                        <option value="Empty">empty only</option>
+                                        <option value="Inline">inline only</option>
+                                        <option value="All">all</option>
+                                    </select>
+                                </label>
+                                <label class="wide">
+                                    <span>short if statements</span>
+                                    <select id="optShortIf">
+                                        <option value="Never">never</option>
+                                        <option value="WithoutElse">without else</option>
+                                        <option value="OnlyFirstIf">first if only</option>
+                                        <option value="AllIfsAndElse">all</option>
+                                    </select>
+                                </label>
+                                <label>
+                                    <span>short loops</span>
+                                    <input type="checkbox" id="optShortLoops">
+                                </label>
+                                <label>
+                                    <span>short blocks</span>
+                                    <input type="checkbox" id="optShortBlocks">
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- other -->
+                        <div class="config-group">
+                            <span class="group-label">other</span>
+                            <div class="config-grid">
+                                <label>
+                                    <span>sort includes</span>
+                                    <input type="checkbox" id="optSortIncludes" checked>
+                                </label>
+                                <label>
+                                    <span>fix ns comments</span>
+                                    <input type="checkbox" id="optFixNsComments" checked>
+                                </label>
+                                <label>
+                                    <span>compact namespaces</span>
+                                    <input type="checkbox" id="optCompactNs">
+                                </label>
+                                <label class="wide">
+                                    <span>break template decl</span>
+                                    <select id="optBreakTemplate">
+                                        <option value="No">no</option>
+                                        <option value="MultiLine">multi-line</option>
+                                        <option value="Yes">yes</option>
+                                    </select>
+                                </label>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <button class="btn btn-primary" id="generateBtn">
-                    <span class="btn-icon">⚡</span>
-                    Generate .clang-format
-                </button>
-            </div>
+                <button class="btn btn-primary" id="generateBtn">generate .clang-format</button>
+            </section>
 
-            <!-- Right Panel - Output -->
-            <div class="panel output-panel">
-                <div class="panel-header">
+            <section class="output-pane">
+                <div class="pane-head">
                     <h2>.clang-format</h2>
-                    <p>Generated configuration file</p>
-                </div>
-                <div class="output-wrapper">
-                    <pre id="output"><span class="placeholder"># Click "Generate" or "Analyze Code" to create your .clang-format file</span></pre>
-                    <div class="output-actions">
-                        <button class="btn btn-icon-only" id="copyBtn" title="Copy to clipboard">
-                            📋
-                        </button>
-                        <button class="btn btn-icon-only" id="downloadBtn" title="Download file">
-                            💾
-                        </button>
+                    <div class="pane-actions">
+                        <button class="btn-icon" id="copyBtn" title="copy">📋</button>
+                        <button class="btn-icon" id="downloadBtn" title="download">⬇</button>
                     </div>
                 </div>
 
-                <!-- Detected Settings -->
-                <div class="detected-settings" id="detectedSettings">
-                    <h3>🔎 Detected Settings</h3>
-                    <div class="settings-list" id="settingsList">
-                        <p class="no-settings">Analyze code to see detected settings</p>
+                <pre id="output"><span class="muted"># paste code and click analyze\n# or configure manually and generate</span></pre>
+
+                <div class="detected-box" id="detectedBox">
+                    <h3>detected patterns</h3>
+                    <div class="tags" id="detectedTags">
+                        <span class="muted">nothing yet</span>
                     </div>
                 </div>
-            </div>
-        </div>
+            </section>
+        </main>
 
-        <!-- Footer -->
-        <footer class="footer">
-            <p>Made for developers who care about code formatting</p>
+        <footer>
+            <p>no tracking, no backend, runs entirely in your browser</p>
         </footer>
     </div>
 
-    <!-- Toast Notification -->
-    <div class="toast" id="toast">
-        <span class="toast-icon">✓</span>
-        <span class="toast-message" id="toastMessage">Copied to clipboard!</span>
-    </div>
+    <div class="toast" id="toast"></div>
 
     <script src="script.js"></script>
 </body>
